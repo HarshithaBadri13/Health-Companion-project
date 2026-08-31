@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -28,21 +28,21 @@ import {
 } from "lucide-react";
 
 const T = {
-  bg: "#071b2a",
-  surface: "#0d2231",
-  panel: "#102d3b",
-  panelAlt: "#142f3f",
-  border: "#1d3f52",
-  borderSoft: "#183548",
-  text: "#eaf7f8",
-  textDim: "#9bb6bf",
-  textMuted: "#698796",
-  accent: "#4ee2c7",
-  accent2: "#8b7cf6",
-  warm: "#ffbf69",
-  good: "#60e39a",
-  danger: "#ff6b6b",
-  shadow: "rgba(10, 20, 26, 0.45)",
+  bg: "#05070D",
+  surface: "#0A111C",
+  panel: "rgba(15, 23, 35, 0.9)",
+  panelAlt: "rgba(10, 17, 28, 0.9)",
+  border: "rgba(0, 217, 255, 0.18)",
+  borderSoft: "rgba(0, 245, 212, 0.12)",
+  text: "#F3FBFF",
+  textDim: "#CFEAFB",
+  textMuted: "#8CAEC9",
+  accent: "#00D9FF",
+  accent2: "#00F5D4",
+  warm: "#8AE8FF",
+  good: "#3AE5B7",
+  danger: "#FF5C7A",
+  shadow: "rgba(0, 217, 255, 0.12)",
 };
 
 const history = [
@@ -78,6 +78,41 @@ function getTrendLabel(value, baseline) {
   return "0.0";
 }
 
+function getWeatherConditionLabel(code) {
+  const map = {
+    0: "Clear sky",
+    1: "Mostly clear",
+    2: "Partly cloudy",
+    3: "Cloudy",
+    45: "Foggy",
+    48: "Dense fog",
+    51: "Light drizzle",
+    53: "Drizzle",
+    55: "Heavy drizzle",
+    56: "Freezing drizzle",
+    57: "Heavy freezing drizzle",
+    61: "Light rain",
+    63: "Rain",
+    65: "Heavy rain",
+    66: "Freezing rain",
+    67: "Heavy freezing rain",
+    71: "Light snow",
+    73: "Snow",
+    75: "Heavy snow",
+    77: "Snow grains",
+    80: "Rain showers",
+    81: "Heavy showers",
+    82: "Violent showers",
+    85: "Snow showers",
+    86: "Heavy snow showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with hail",
+    99: "Severe thunderstorm",
+  };
+
+  return map[code] || "Variable conditions";
+}
+
 const defaultProfile = {
   fullName: "",
   email: "",
@@ -94,8 +129,32 @@ const defaultProfile = {
   agree: false,
 };
 
+function LogoMark({ size = 18, color = "#4ee2c7" }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 64 64"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-label="Rakshak logo"
+    >
+      <defs>
+        <linearGradient id="rakshak-logo-gradient" x1="10" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
+          <stop stopColor={color} />
+          <stop offset="1" stopColor="#8b7cf6" />
+        </linearGradient>
+      </defs>
+      <path d="M32 6L50 12V28C50 39.4 42.1 48.6 32 55C21.9 48.6 14 39.4 14 28V12L32 6Z" fill="url(#rakshak-logo-gradient)" opacity="0.18" />
+      <path d="M32 6L50 12V28C50 39.4 42.1 48.6 32 55C21.9 48.6 14 39.4 14 28V12L32 6Z" stroke="url(#rakshak-logo-gradient)" strokeWidth="3.2" />
+      <path d="M23 31C24.6 26.6 28 23 32 23C36.2 23 39.7 26.4 41.2 31.1L42.5 34.8C43.9 39.6 40.9 44.8 35.9 46.2L34.3 46.6C29.1 47.8 23.7 44.5 22.2 39.5L21.2 35.6C20.8 34.1 21.1 32.4 22.2 31.3L23 31Z" fill="url(#rakshak-logo-gradient)" opacity="0.9" />
+      <path d="M32 18V29M26 23L32 29L38 23" stroke="#EAF7F8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
 export default function App() {
-  const [screen, setScreen] = useState("landing");
+  const [screen, setScreen] = useState("splash");
   const [authMode, setAuthMode] = useState("login");
   const [profile, setProfile] = useState(defaultProfile);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
@@ -123,6 +182,10 @@ export default function App() {
     goToDashboard();
   };
 
+  if (screen === "splash") {
+    return <SplashScreen onStart={() => setScreen("landing")} onLogin={() => { setAuthMode("login"); setScreen("auth"); }} />;
+  }
+
   if (screen === "landing") {
     return <LandingPage onStart={() => setScreen("auth")} onLogin={() => { setAuthMode("login"); setScreen("auth"); }} />;
   }
@@ -143,44 +206,158 @@ export default function App() {
   return <Dashboard profile={profile} onLogout={() => { setIsAuthenticated(false); setScreen("landing"); }} />;
 }
 
+function SplashScreen({ onStart, onLogin }) {
+  return (
+    <div style={{
+      minHeight: "100vh",
+      display: "flex",
+      alignItems: "center",
+      justifyContent: "center",
+      padding: 24,
+      background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.18), transparent 30%), linear-gradient(180deg, #05070D 0%, #0A111C 62%, #05070D 100%)",
+      color: T.text,
+      fontFamily: "'Poppins', 'Segoe UI', sans-serif",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+      <div style={{
+        position: "absolute",
+        inset: 0,
+        background: "radial-gradient(circle at 20% 20%, rgba(0, 217, 255, 0.12), transparent 30%), radial-gradient(circle at 80% 18%, rgba(0, 245, 212, 0.08), transparent 24%), linear-gradient(90deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 1px)",
+        backgroundSize: "100% 100%, 100% 100%, 22px 22px, 22px 22px",
+      }} />
+
+      <div style={{
+        position: "relative",
+        zIndex: 1,
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 18,
+        textAlign: "center",
+      }}>
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: 12,
+        }}>
+          <div style={{
+            width: 136,
+            height: 136,
+            borderRadius: 36,
+            background: "rgba(10, 17, 28, 0.72)",
+            border: "1px solid rgba(0, 217, 255, 0.32)",
+            boxShadow: "0 0 0 1px rgba(0, 217, 255, 0.08), 0 15px 50px rgba(0, 217, 255, 0.12)",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            backdropFilter: "blur(8px)",
+          }}>
+            <LogoMark size={86} color={T.accent} />
+          </div>
+
+          <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "0.18em", color: T.text, textTransform: "uppercase" }}>Rakshak</span>
+        </div>
+
+        <img
+          src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1000&q=80"
+          alt="Health companion concept image"
+          style={{
+            width: "min(420px, 76vw)",
+            height: "auto",
+            display: "block",
+            borderRadius: 24,
+            border: "1px solid rgba(0, 217, 255, 0.22)",
+            boxShadow: "0 0 30px rgba(0, 217, 255, 0.12)",
+            objectFit: "cover",
+          }}
+        />
+
+        <button
+          onClick={onStart}
+          style={{
+            border: "1px solid rgba(0, 217, 255, 0.4)",
+            borderRadius: 999,
+            background: "linear-gradient(135deg, rgba(0, 217, 255, 0.95), rgba(0, 245, 212, 0.9))",
+            color: "#04151B",
+            padding: "18px 34px",
+            fontSize: 17,
+            fontWeight: 700,
+            cursor: "pointer",
+            boxShadow: "0 0 18px rgba(0, 217, 255, 0.28)",
+            minWidth: 220,
+            transition: "all 0.2s ease",
+          }}
+        >
+          Get started
+        </button>
+      </div>
+
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+
+        * { box-sizing: border-box; }
+        body { margin: 0; background: ${T.bg}; font-family: 'Poppins', 'Segoe UI', sans-serif; }
+        a { color: inherit; text-decoration: none; }
+      `}</style>
+    </div>
+  );
+}
+
 function LandingPage({ onStart, onLogin }) {
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.12), transparent 22%), linear-gradient(180deg, #05070D 0%, #0A111C 55%, #05070D 100%)", color: T.text, fontFamily: "'Poppins', 'Segoe UI', sans-serif" }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+
         * { box-sizing: border-box; }
-        body { margin: 0; background: ${T.bg}; }
+        html { font-size: 16px; }
+        body { margin: 0; background: ${T.bg}; font-family: 'Poppins', 'Segoe UI', sans-serif; }
         a { color: inherit; text-decoration: none; }
         .landing-shell { max-width: 1220px; margin: 0 auto; padding: 32px 22px 56px; }
+        .landing-shell::before {
+          content: "";
+          position: fixed;
+          inset: 0;
+          background-image: url('https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1600&q=80');
+          background-size: cover;
+          background-position: center;
+          opacity: 0.08;
+          pointer-events: none;
+        }
         .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
         .brand { display: flex; align-items: center; gap: 12px; }
-        .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: rgba(78, 226, 199, 0.14); border: 1px solid rgba(78, 226, 199, 0.4); display: flex; align-items: center; justify-content: center; }
+        .brand-mark { width: 40px; height: 40px; border-radius: 14px; background: linear-gradient(135deg, rgba(22,181,166,0.12), rgba(79,110,247,0.12)); border: 1px solid rgba(22,181,166,0.25); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 1px 0 rgba(255,255,255,0.7); }
         .nav-actions { display: flex; gap: 12px; align-items: center; }
         .ghost-btn, .primary-btn { border-radius: 12px; padding: 12px 18px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
-        .ghost-btn { background: transparent; border-color: ${T.border}; color: ${T.text}; }
-        .primary-btn { background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; }
+        .ghost-btn { background: rgba(15, 23, 35, 0.8); border-color: ${T.border}; color: ${T.text}; }
+        .primary-btn { background: linear-gradient(135deg, ${T.accent}, #74d8c7); color: #0a2f3c; box-shadow: 0 10px 20px rgba(22,181,166,0.18); }
         .hero { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 24px; align-items: center; }
-        .hero-panel { padding: 34px; border-radius: 28px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(17,42,54,0.98), rgba(9,25,35,0.98)); box-shadow: 0 22px 60px rgba(0,0,0,0.30); position: relative; overflow: hidden; }
-        .hero-panel::before { content: ""; position: absolute; inset: -30% 30% auto auto; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(78,226,199,0.22), transparent 68%); }
-        .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: #d6ccff; letter-spacing: 0.14em; text-transform: uppercase; padding: 8px 12px; border-radius: 999px; background: rgba(139,124,246,0.08); border: 1px solid rgba(139,124,246,0.25); }
+        .hero-panel { padding: 34px; border-radius: 28px; border: 1px solid ${T.border}; background: linear-gradient(135deg, rgba(12, 22, 32, 0.96), rgba(8, 18, 27, 0.96)); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28); position: relative; overflow: hidden; }
+        .hero-panel::before { content: ""; position: absolute; inset: -30% 30% auto auto; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(0, 217, 255, 0.15), transparent 68%); }
+        .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: ${T.accent2}; letter-spacing: 0.14em; text-transform: uppercase; padding: 8px 12px; border-radius: 999px; background: rgba(79,110,247,0.08); border: 1px solid rgba(79,110,247,0.18); }
         h1 { margin: 18px 0 16px; font-size: clamp(2.8rem, 6vw, 5rem); line-height: 0.96; letter-spacing: -0.08em; }
-        .gradient-text { background: linear-gradient(135deg, #effcf6 0%, #61dcc5 35%, #b7d0ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .gradient-text { background: linear-gradient(135deg, #dffeff 0%, #62d9c8 35%, #b7ccff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .landing-copy { max-width: 620px; color: ${T.textDim}; font-size: 17px; line-height: 1.7; }
         .cta-group { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
         .mini-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
-        .mini-stat { padding: 14px 16px; border: 1px solid ${T.border}; background: rgba(255,255,255,0.02); border-radius: 16px; }
+        .mini-stat { padding: 14px 16px; border: 1px solid ${T.border}; background: rgba(12, 22, 32, 0.9); border-radius: 16px; }
         .mini-stat .num { font-size: 26px; font-weight: 700; letter-spacing: -0.06em; }
         .mini-stat .label { color: ${T.textDim}; font-size: 12px; }
-        .feature-panel { padding: 24px; border-radius: 28px; border: 1px solid ${T.border}; background: rgba(15,36,49,0.9); }
-        .feature-card { padding: 18px; border-radius: 18px; border: 1px solid ${T.borderSoft}; background: ${T.panelAlt}; margin-bottom: 14px; }
+        .feature-panel { padding: 24px; border-radius: 28px; border: 1px solid ${T.border}; background: rgba(11, 20, 29, 0.84); }
+        .feature-card { padding: 18px; border-radius: 18px; border: 1px solid ${T.borderSoft}; background: rgba(255,255,255,0.02); margin-bottom: 14px; }
         .feature-card:last-child { margin-bottom: 0; }
         .feature-card h3 { font-size: 18px; margin: 12px 0 8px; }
         .feature-card p { margin: 0; color: ${T.textDim}; line-height: 1.6; font-size: 14px; }
         .feature-row { display: flex; align-items: center; gap: 10px; }
-        .visual-card { padding: 18px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(11,27,37,0.9), rgba(15,35,48,0.9)); box-shadow: 0 24px 50px rgba(0,0,0,0.25); }
+        .visual-card { padding: 18px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(14, 24, 34, 0.96), rgba(7, 16, 25, 0.96)); box-shadow: 0 24px 50px rgba(0, 0, 0, 0.20); }
         .visual-top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 18px; }
         .visual-pill { display:inline-flex; align-items:center; gap:8px; padding: 7px 10px; border-radius: 999px; background: rgba(78,226,199,0.09); border: 1px solid rgba(78,226,199,0.25); color: ${T.accent}; font-size: 12px; }
         .mini-visual-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-        .mini-panel { background: rgba(255,255,255,0.02); border: 1px solid ${T.borderSoft}; border-radius: 16px; padding: 12px; }
+        .mini-panel { background: rgba(255,255,255,0.03); border: 1px solid ${T.borderSoft}; border-radius: 16px; padding: 12px; }
         .mini-panel h4 { margin: 0 0 10px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: ${T.textMuted}; }
         .mini-panel .big { font-size: 28px; font-weight: 700; letter-spacing: -0.06em; }
         .mini-panel .sub { color: ${T.textDim}; font-size: 12px; margin-top: 6px; }
@@ -188,10 +365,10 @@ function LandingPage({ onStart, onLogin }) {
         .visual-chart::before { content: ""; position:absolute; inset: 12% 8% 16% 8%; background: linear-gradient(180deg, rgba(78,226,199,0), rgba(78,226,199,0.5)); clip-path: polygon(0% 100%, 16% 64%, 30% 70%, 44% 50%, 56% 58%, 74% 26%, 100% 18%, 100% 100%); }
         .visual-chart::after { content: ""; position:absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, transparent 40%, rgba(255,255,255,0.06) 60%, transparent 80%); }
         .benefits { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-        .benefit { padding: 24px 18px; border-radius: 20px; border: 1px solid ${T.border}; background: rgba(13,34,49,0.8); }
+        .benefit { padding: 24px 18px; border-radius: 20px; border: 1px solid ${T.border}; background: rgba(12, 22, 32, 0.9); }
         .benefit h4 { margin: 12px 0 8px; font-size: 20px; }
         .benefit p { margin: 0; color: ${T.textDim}; font-size: 14px; line-height: 1.6; }
-        .journey { margin-top: 30px; padding: 28px 24px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(13,34,49,0.8), rgba(9,25,35,0.92)); }
+        .journey { margin-top: 30px; padding: 28px 24px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(12, 22, 32, 0.98), rgba(8, 16, 25, 0.96)); }
         .journey-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 18px; }
         .journey-header h3 { margin:0; font-size: clamp(1.5rem, 2vw, 2.1rem); letter-spacing:-0.05em; }
         .journey-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:14px; }
@@ -208,7 +385,7 @@ function LandingPage({ onStart, onLogin }) {
       <div className="landing-shell">
         <nav className="nav">
           <div className="brand">
-            <div className="brand-mark"><ShieldCheck size={18} color={T.accent} /></div>
+            <div className="brand-mark"><LogoMark size={18} color={T.accent} /></div>
             <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em" }}>Rakshak</div>
           </div>
           <div className="nav-actions">
@@ -331,14 +508,24 @@ function LandingPage({ onStart, onLogin }) {
 
 function AuthPage({ authMode, setAuthMode, profile, updateProfile, onSubmit, onBack }) {
   return (
-    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.14), transparent 26%), linear-gradient(180deg, #05070D 0%, #0A111C 56%, #05070D 100%)", color: T.text, fontFamily: "'Poppins', 'Segoe UI', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+
         * { box-sizing: border-box; }
-        body { margin: 0; }
-        .auth-box { width: min(980px, 100%); background: linear-gradient(180deg, rgba(16,45,59,0.98), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 28px; box-shadow: 0 28px 60px rgba(0,0,0,0.3); overflow: hidden; }
-        .auth-top { padding: 20px 28px; border-bottom: 1px solid ${T.border}; display:flex; justify-content:space-between; align-items:center; }
-        .switch { display:flex; gap: 8px; background: ${T.surface}; padding: 6px; border-radius: 12px; border: 1px solid ${T.border}; }
-        .toggle { border: none; background: transparent; color: ${T.textDim}; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+        html { font-size: 16px; }
+        body {
+          margin: 0;
+          font-family: 'Poppins', 'Segoe UI', sans-serif;
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
+        }
+        h1, h2, h3, h4, h5, h6, strong, b { letter-spacing: -0.04em; }
+        button, input, select, textarea { letter-spacing: 0.01em; }
+        .auth-box { width: min(980px, 100%); background: linear-gradient(180deg, rgba(16,45,59,0.98), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 30px; box-shadow: 0 28px 70px rgba(0,0,0,0.30); overflow: hidden; }
+        .auth-top { padding: 22px 28px; border-bottom: 1px solid ${T.border}; display:flex; justify-content:space-between; align-items:center; background: rgba(255,255,255,0.02); }
+        .switch { display:flex; gap: 8px; background: ${T.surface}; padding: 6px; border-radius: 14px; border: 1px solid ${T.border}; }
+        .toggle { border: none; background: transparent; color: ${T.textDim}; padding: 10px 16px; border-radius: 11px; cursor: pointer; font-weight: 700; }
         .toggle.active { background: rgba(78,226,199,0.12); color: ${T.text}; border: 1px solid rgba(78,226,199,0.35); }
         .auth-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; }
         .info-panel { padding: 28px; background: linear-gradient(180deg, rgba(78,226,199,0.08), rgba(139,124,246,0.04)); border-right: 1px solid ${T.border}; }
@@ -346,15 +533,16 @@ function AuthPage({ authMode, setAuthMode, profile, updateProfile, onSubmit, onB
         .info-panel p { margin: 0; line-height: 1.7; color: ${T.textDim}; }
         .info-list { margin-top: 22px; display:grid; gap: 12px; }
         .list-item { display:flex; align-items:flex-start; gap: 10px; padding: 12px 14px; background: rgba(255,255,255,0.02); border: 1px solid ${T.border}; border-radius: 14px; color: ${T.textDim}; }
-        .form-panel { padding: 28px; }
+        .form-panel { padding: 28px; background: rgba(255,255,255,0.01); }
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-        label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: ${T.textMuted}; }
-        input, select, textarea { width: 100%; border-radius: 12px; border: 1px solid ${T.border}; background: rgba(6,18,26,0.8); color: ${T.text}; padding: 12px 14px; font-size: 14px; }
+        label { display: flex; flex-direction: column; gap: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: ${T.textMuted}; }
+        input, select, textarea { width: 100%; border-radius: 14px; border: 1px solid ${T.border}; background: rgba(6,18,26,0.8); color: ${T.text}; padding: 12px 14px; font-size: 14px; outline: none; }
+        input:focus, select:focus, textarea:focus { border-color: rgba(78,226,199,0.45); box-shadow: 0 0 0 3px rgba(78,226,199,0.08); }
         input::placeholder, textarea::placeholder { color: ${T.textMuted}; }
         .span-2 { grid-column: span 2; }
         .checkbox-row { display:flex; align-items:flex-start; gap: 10px; color: ${T.textDim}; font-size: 13px; margin-top: 8px; }
         .checkbox-row input { width: 18px; height: 18px; accent-color: ${T.accent}; }
-        .submit-btn { margin-top: 18px; width: 100%; padding: 14px 18px; border: none; border-radius: 12px; background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; font-weight: 800; cursor: pointer; }
+        .submit-btn { margin-top: 18px; width: 100%; padding: 15px 18px; border: none; border-radius: 14px; background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; font-weight: 800; cursor: pointer; box-shadow: 0 14px 30px rgba(78,226,199,0.20); }
         @media (max-width: 760px) {
           .auth-grid { grid-template-columns: 1fr; }
           .form-grid { grid-template-columns: 1fr; }
@@ -519,6 +707,19 @@ function Dashboard({ profile, onLogout }) {
     gps: false,
     wearables: false,
   });
+  const [liveWeather, setLiveWeather] = useState({
+    temp: 31,
+    humidity: 68,
+    uvIndex: 7,
+    airQuality: 42,
+    precipitation: 0,
+    windSpeed: 12,
+    weatherCode: 0,
+    summary: "Checking live weather...",
+    alert: "Live weather is being updated.",
+    isLoading: true,
+  });
+  const audioContextRef = useRef(null);
 
   const pairingCode = "RAK-4821";
 
@@ -538,14 +739,21 @@ function Dashboard({ profile, onLogout }) {
       };
 
   const environment = {
-    airQuality: 42,
-    temp: 31,
-    humidity: 68,
-    uvIndex: 7,
+    airQuality: liveWeather.airQuality,
+    temp: liveWeather.temp,
+    humidity: liveWeather.humidity,
+    uvIndex: liveWeather.uvIndex,
     pollen: 58,
+    precipitation: liveWeather.precipitation,
+    windSpeed: liveWeather.windSpeed,
+    weatherCode: liveWeather.weatherCode,
+    summary: liveWeather.summary,
+    alert: liveWeather.alert,
   };
 
-  const isDangerState = current.stress > 45 || environment.temp > 30 || environment.airQuality > 45;
+  const isHealthDanger = current.stress > 45 || current.recovery < 70;
+  const isEnvironmentDanger = environment.temp > 30 || environment.airQuality > 45 || environment.uvIndex > 6;
+  const isDangerState = isHealthDanger || isEnvironmentDanger;
 
   const applyEmergencyContacts = (contacts) => {
     const mappedContacts = contacts
@@ -709,6 +917,77 @@ function Dashboard({ profile, onLogout }) {
     window.open(liveLocation.googleMapsUrl, "_blank", "noopener,noreferrer");
   };
 
+  const openWeatherMap = () => {
+    const lat = deviceLocation.lat ?? 19.0760;
+    const lng = deviceLocation.lng ?? 72.8777;
+    const weatherUrl = `https://www.windy.com/?lat=${lat}&lon=${lng}&zoom=7&layer=radar&menu=rain&detail=detail&detailLat=${lat}&detailLon=${lng}&metricWind=km%2Fh&metricTemp=%C2%B0C&detailShow=true`;
+    window.open(weatherUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const unlockAudio = async () => {
+    const AudioConstructor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioConstructor) return;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioConstructor();
+    }
+
+    if (audioContextRef.current.state === "suspended") {
+      try {
+        await audioContextRef.current.resume();
+      } catch (error) {
+        console.warn("Audio resume failed:", error);
+      }
+    }
+  };
+
+  const triggerRiskTone = async (riskType = "combined") => {
+    const AudioConstructor = window.AudioContext || window.webkitAudioContext;
+    if (!AudioConstructor) return;
+
+    if (!audioContextRef.current) {
+      audioContextRef.current = new AudioConstructor();
+    }
+
+    try {
+      if (audioContextRef.current.state === "suspended") {
+        await audioContextRef.current.resume();
+      }
+    } catch (error) {
+      console.warn("Audio context could not resume:", error);
+      return;
+    }
+
+    const toneMap = {
+      health: { frequency: 220, duration: 0.22, type: "sawtooth", volume: 0.045 },
+      environment: { frequency: 440, duration: 0.18, type: "triangle", volume: 0.04 },
+      combined: { frequency: 310, duration: 0.3, type: "square", volume: 0.055 },
+    };
+
+    const tone = toneMap[riskType] || toneMap.combined;
+
+    try {
+      const audioContext = audioContextRef.current;
+      const oscillator = audioContext.createOscillator();
+      const gainNode = audioContext.createGain();
+
+      oscillator.type = tone.type;
+      oscillator.frequency.value = tone.frequency;
+
+      gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(tone.volume, audioContext.currentTime + 0.03);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + tone.duration);
+
+      oscillator.connect(gainNode);
+      gainNode.connect(audioContext.destination);
+
+      oscillator.start();
+      oscillator.stop(audioContext.currentTime + tone.duration);
+    } catch (error) {
+      console.warn("Risk tone could not be started:", error);
+    }
+  };
+
   const triggerCall = (number) => {
     const cleaned = number.replace(/\D/g, "");
     if (cleaned) {
@@ -763,17 +1042,77 @@ function Dashboard({ profile, onLogout }) {
   }, []);
 
   useEffect(() => {
+    const fetchLiveWeatherData = async (lat, lng) => {
+      try {
+        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,uv_index&timezone=auto`;
+        const airUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi&timezone=auto`;
+
+        const [weatherResponse, airResponse] = await Promise.all([
+          fetch(weatherUrl),
+          fetch(airUrl),
+        ]);
+
+        if (!weatherResponse.ok || !airResponse.ok) {
+          throw new Error("Weather service unavailable");
+        }
+
+        const weatherData = await weatherResponse.json();
+        const airData = await airResponse.json();
+        const currentWeather = weatherData.current || {};
+        const currentAir = airData.current || {};
+        const temp = Number(currentWeather.temperature_2m ?? 31);
+        const humidity = Number(currentWeather.relative_humidity_2m ?? 68);
+        const uvIndex = Number(currentWeather.uv_index ?? 7);
+        const precipitation = Number(currentWeather.precipitation ?? 0);
+        const windSpeed = Number(currentWeather.wind_speed_10m ?? 12);
+        const weatherCode = Number(currentWeather.weather_code ?? 0);
+        const airQuality = Number(currentAir.us_aqi ?? 42);
+        const conditionLabel = getWeatherConditionLabel(weatherCode);
+
+        let alert = "Conditions are stable at the moment.";
+        if (temp > 35 || airQuality > 90 || precipitation > 12 || (weatherCode >= 95 && weatherCode <= 99)) {
+          alert = "Extreme conditions detected: heat, storm, flood, or poor air quality risk is elevated.";
+        } else if (temp > 30 || airQuality > 60 || precipitation > 5 || uvIndex > 6) {
+          alert = "High alert: outdoor exposure may be risky. Watch for heat stress or heavy weather.";
+        }
+
+        setLiveWeather({
+          temp,
+          humidity,
+          uvIndex,
+          airQuality,
+          precipitation,
+          windSpeed,
+          weatherCode,
+          summary: conditionLabel,
+          alert,
+          isLoading: false,
+        });
+      } catch (error) {
+        console.warn("Weather API fetch failed", error);
+        setLiveWeather((prev) => ({
+          ...prev,
+          isLoading: false,
+          alert: "Live weather data could not be reached. Local safety guidance is still active.",
+        }));
+      }
+    };
+
     if (navigator && navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
+          const nextLat = position.coords.latitude;
+          const nextLng = position.coords.longitude;
+
           setDeviceLocation({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude,
+            lat: nextLat,
+            lng: nextLng,
             label: "Current device location",
             permission: "granted",
             error: "",
           });
           setDeviceAccess((prev) => ({ ...prev, gps: true }));
+          fetchLiveWeatherData(nextLat, nextLng);
         },
         (error) => {
           setDeviceLocation({
@@ -784,6 +1123,11 @@ function Dashboard({ profile, onLogout }) {
             error: error.message || "Location access was denied. Enable location access to share the live position.",
           });
           setDeviceAccess((prev) => ({ ...prev, gps: false }));
+          setLiveWeather((prev) => ({
+            ...prev,
+            isLoading: false,
+            alert: "Location access is not available, so live weather conditions are temporarily unavailable.",
+          }));
         },
         {
           enableHighAccuracy: true,
@@ -800,20 +1144,62 @@ function Dashboard({ profile, onLogout }) {
         error: "This browser does not support live geolocation. Use a connected mobile device with GPS access.",
       });
       setDeviceAccess((prev) => ({ ...prev, gps: false }));
+      setLiveWeather((prev) => ({
+        ...prev,
+        isLoading: false,
+        alert: "This browser does not support location-based weather monitoring.",
+      }));
     }
 
     setDeviceAccess((prev) => ({ ...prev, wearables: true }));
   }, []);
 
   useEffect(() => {
-    if (isDangerState) {
-      const timer = setTimeout(() => {
-        dialEmergencyContacts();
-      }, 1200);
+    const handleUserInteraction = () => {
+      unlockAudio();
+    };
 
-      return () => clearTimeout(timer);
-    }
-  }, [isDangerState]);
+    window.addEventListener("pointerdown", handleUserInteraction, { once: true });
+    window.addEventListener("keydown", handleUserInteraction, { once: true });
+    window.addEventListener("touchstart", handleUserInteraction, { once: true });
+
+    return () => {
+      window.removeEventListener("pointerdown", handleUserInteraction);
+      window.removeEventListener("keydown", handleUserInteraction);
+      window.removeEventListener("touchstart", handleUserInteraction);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isDangerState) return;
+
+    const riskTypes = [];
+    if (isHealthDanger) riskTypes.push("health");
+    if (isEnvironmentDanger) riskTypes.push("environment");
+
+    const playAlertTone = () => {
+      riskTypes.forEach((riskType, index) => {
+        setTimeout(() => {
+          triggerRiskTone(riskType);
+        }, index * 180);
+      });
+    };
+
+    playAlertTone();
+
+    const buzzer = setInterval(() => {
+      playAlertTone();
+    }, 3500);
+
+    const timer = setTimeout(() => {
+      dialEmergencyContacts();
+    }, 1200);
+
+    return () => {
+      clearInterval(buzzer);
+      clearTimeout(timer);
+    };
+  }, [isDangerState, isHealthDanger, isEnvironmentDanger]);
 
   const emergencyMapUrl = `https://maps.google.com/maps?q=${liveLocation.lat ?? 19.0760},${liveLocation.lng ?? 72.8777}&z=13&output=embed`;
 
@@ -1263,6 +1649,27 @@ function Dashboard({ profile, onLogout }) {
     }
 
     if (activeTab === "emergency") {
+      const primaryRisk = isHealthDanger && isEnvironmentDanger
+        ? "Both health and environmental conditions are elevated"
+        : isHealthDanger
+          ? "Health risks are elevated"
+          : isEnvironmentDanger
+            ? "Environmental hazards are elevated"
+            : "No immediate danger signals";
+
+      const riskDrivers = [
+        isHealthDanger ? `Stress level ${current.stress}/100 with recovery at ${current.recovery}/100` : "Health metrics remain within a stable range",
+        isEnvironmentDanger ? `Air quality ${environment.airQuality} AQI, temperature ${environment.temp}°C, UV ${environment.uvIndex}/10` : "Environmental metrics are relatively stable",
+        deviceLocation.lat !== null && deviceLocation.lng !== null ? `Live location available: ${deviceLocation.lat.toFixed(4)}, ${deviceLocation.lng.toFixed(4)}` : "Location share is not active yet; enable GPS for faster emergency help",
+      ];
+
+      const responseSteps = [
+        { title: "Immediate safety", detail: isDangerState ? "Move to a cool, safe indoor place and avoid strenuous activity until the risk falls." : "Keep hydration and a rapid-response plan ready in case the risk rises.", icon: ShieldCheck, color: T.warm },
+        { title: "Health check", detail: isHealthDanger ? "Focus on rest, hydration, and symptom monitoring for dizziness, confusion, chest pain, or sudden fatigue." : "Monitor for changes in stress, energy, and sleep quality during the next few hours.", icon: HeartPulse, color: T.danger },
+        { title: "Environmental response", detail: isEnvironmentDanger ? "Reduce outdoor exposure, use shade or masks, and keep cooling supplies nearby while AQI or heat remains high." : "Continue routine monitoring; conditions are manageable for now.", icon: Activity, color: T.accent },
+        { title: "Emergency contact", detail: "Share your live map and send a message to all saved contacts if symptoms worsen or conditions become unsafe.", icon: PhoneCall, color: T.accent2 },
+      ];
+
       return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
           <div className="panel" style={{ padding: 18 }}>
@@ -1280,11 +1687,11 @@ function Dashboard({ profile, onLogout }) {
               <div className="status-strip">
                 <div className="status-card">
                   <div className="status-label">Health</div>
-                  <div className="status-value">{current.recovery < 70 ? "Elevated" : "Stable"}</div>
+                  <div className="status-value" style={{ color: isHealthDanger ? T.danger : T.good }}>{isHealthDanger ? "Elevated" : "Stable"}</div>
                 </div>
                 <div className="status-card">
                   <div className="status-label">Environment</div>
-                  <div className="status-value">{environment.temp > 30 || environment.airQuality > 45 ? "Unsafe" : "Safe"}</div>
+                  <div className="status-value" style={{ color: isEnvironmentDanger ? T.warm : T.good }}>{isEnvironmentDanger ? "Unsafe" : "Safe"}</div>
                 </div>
               </div>
 
@@ -1303,6 +1710,18 @@ function Dashboard({ profile, onLogout }) {
                 </div>
               </div>
 
+              <div className="sms-box" style={{ marginTop: 12 }}>
+                <strong>Current risk summary:</strong> {primaryRisk}
+              </div>
+
+              <div className="alert-contact-list" style={{ marginTop: 12 }}>
+                {riskDrivers.map((driver, index) => (
+                  <div className="sms-box" key={`${driver}-${index}`} style={{ marginTop: 0, marginBottom: 8 }}>
+                    {driver}
+                  </div>
+                ))}
+              </div>
+
               <div className="map-card">
                 <iframe
                   title="Emergency location map"
@@ -1319,6 +1738,7 @@ function Dashboard({ profile, onLogout }) {
                 <button className="action-primary" onClick={dialEmergencyContacts} disabled={!emergencyContacts.length}>Call contacts</button>
                 <button className="action-secondary" onClick={sendRiskMessageToAllContacts} disabled={!emergencyContacts.length}>Message all</button>
                 <button className="action-secondary" onClick={openMap}>Safe zone</button>
+                <button className="action-secondary" onClick={openWeatherMap}>Live weather map</button>
               </div>
 
               <div className="sms-box" style={{ marginTop: 12 }}>
@@ -1353,6 +1773,10 @@ function Dashboard({ profile, onLogout }) {
                   ? "Important: the system is automatically contacting priority contacts because the environment or mental health risk is high. Take immediate rest, hydrate, and seek safe shelter if symptoms worsen."
                   : "Your current risk is manageable. Keep hydration and cooling routines ready, and remain alert to sudden spikes in stress, heat, or air conditions."}
               </div>
+
+              <div className="sms-box" style={{ marginTop: 8 }}>
+                <strong>Live weather watch (Open-Meteo):</strong> {environment.summary} — {environment.alert}
+              </div>
             </div>
           </div>
 
@@ -1362,12 +1786,7 @@ function Dashboard({ profile, onLogout }) {
               <div className="panel-copy">Quick actions</div>
             </div>
             <div className="action-list" style={{ margin: 0 }}>
-              {[
-                { title: "Move to cool indoor space", detail: "If heat or air stress rises, relocate to a cooler indoor environment and keep fluids ready.", icon: ShieldCheck, color: T.warm },
-                { title: "Contact support", detail: "Notify your emergency contact and use your saved access number for direct contact.", icon: HeartPulse, color: T.accent },
-                { title: "Monitor warning signs", detail: "Look for dizziness, chest pain, confusion, fainting, or sudden worsening of fatigue.", icon: Activity, color: T.danger },
-                { title: "Keep a safe response ready", detail: "Store your location, emergency numbers, and travel route in case you need fast action.", icon: Sparkles, color: T.accent2 },
-              ].map(({ title, detail, icon: Icon, color }) => (
+              {responseSteps.map(({ title, detail, icon: Icon, color }) => (
                 <div className="action-item" key={title}>
                   <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
                   <div>
@@ -1376,6 +1795,15 @@ function Dashboard({ profile, onLogout }) {
                   </div>
                 </div>
               ))}
+            </div>
+
+            <div className="insight-box" style={{ marginTop: 18 }}>
+              <div className="tag">Emergency escalation</div>
+              <p>
+                {isDangerState
+                  ? "If symptoms become severe, call emergency services immediately, move to a safer area, and continue sharing your location with trusted contacts until the risk is resolved."
+                  : "Keep your plan ready: monitor the latest readings, maintain hydration, and check in with contacts if stress or environmental indicators begin to trend upward."}
+              </p>
             </div>
           </div>
         </div>
@@ -1434,20 +1862,30 @@ function Dashboard({ profile, onLogout }) {
   };
 
   return (
-    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
+    <div style={{ background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.12), transparent 28%), linear-gradient(180deg, #05070D 0%, #0A111C 60%, #05070D 100%)", minHeight: "100vh", color: T.text, fontFamily: "'Poppins', 'Segoe UI', sans-serif" }}>
       <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
+
         * { box-sizing: border-box; }
-        body { margin: 0; background: ${T.bg}; }
+        body {
+          margin: 0;
+          background: ${T.bg};
+          font-family: 'Poppins', 'Segoe UI', sans-serif;
+          -webkit-font-smoothing: antialiased;
+          text-rendering: optimizeLegibility;
+        }
+        h1, h2, h3, h4, h5, h6, strong, b { font-family: 'Poppins', 'Segoe UI', sans-serif; letter-spacing: -0.04em; }
+        button, input, select, textarea { font-family: 'Poppins', 'Segoe UI', sans-serif; letter-spacing: 0.01em; }
         button, select { font: inherit; }
         .page { max-width: 1200px; width: 100%; margin: 0 auto; padding: 28px 22px 48px; display: flex; flex-direction: column; align-items: center; }
-        .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; width: 100%; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; width: 100%; padding: 10px 0; }
         .tab-bar { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 24px; justify-content: center; align-items: center; width: 100%; }
         .tab-btn { border: 1px solid ${T.border}; background: ${T.surface}; color: ${T.textDim}; border-radius: 12px; padding: 10px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
-        .tab-btn.active { background: rgba(78, 226, 199, 0.12); color: ${T.text}; border-color: rgba(78, 226, 199, 0.35); }
+        .tab-btn.active { background: rgba(22,181,166,0.12); color: ${T.text}; border-color: rgba(22,181,166,0.32); }
         .brand { display: flex; align-items: center; gap: 12px; }
-        .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: rgba(78, 226, 199, 0.14); border: 1px solid rgba(78, 226, 199, 0.4); display:flex; align-items:center; justify-content:center; }
+        .brand-mark { width: 40px; height: 40px; border-radius: 14px; background: linear-gradient(135deg, rgba(22,181,166,0.12), rgba(79,110,247,0.12)); border: 1px solid rgba(22,181,166,0.25); display:flex; align-items:center; justify-content:center; box-shadow: inset 0 1px 0 rgba(255,255,255,0.7); }
         .brand-name { font-size: 24px; font-weight: 700; letter-spacing: -0.04em; }
-        .status-pill { border: 1px solid ${T.border}; background: ${T.surface}; border-radius: 999px; padding: 8px 12px; color: ${T.textDim}; font-size: 12px; display: inline-flex; align-items:center; gap:8px; }
+        .status-pill { border: 1px solid ${T.border}; background: rgba(255,255,255,0.8); border-radius: 999px; padding: 8px 12px; color: ${T.textDim}; font-size: 12px; display: inline-flex; align-items:center; gap:8px; }
         .dot { width: 8px; height: 8px; border-radius: 50%; background: ${T.good}; box-shadow: 0 0 12px ${T.good}; }
         .hero { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 18px; }
         .panel { background: linear-gradient(180deg, rgba(16,45,59,0.96), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 22px; box-shadow: 0 18px 40px ${T.shadow}; }
@@ -1608,7 +2046,7 @@ function Dashboard({ profile, onLogout }) {
 
         <header className="topbar">
           <div className="brand">
-            <div className="brand-mark"><ShieldCheck size={18} color={T.accent} /></div>
+            <div className="brand-mark"><LogoMark size={18} color={T.accent} /></div>
             <div className="brand-name">Rakshak</div>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
