@@ -1,696 +1,1709 @@
-/*
- * Rakshak — On-Device Health Guardian (React component)
- */
-
-import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
-  AreaChart, Area, LineChart, Line, XAxis, YAxis, Tooltip,
-  ResponsiveContainer, CartesianGrid,
+  Area,
+  AreaChart,
+  CartesianGrid,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
 } from "recharts";
 import {
-  Heart, Activity, Wind, CloudRain, Thermometer, ShieldAlert, Siren,
-  Lock, MapPin, Phone, TrendingUp, TrendingDown, ShieldCheck, Radio,
-  BellRing, ChevronDown, ChevronUp, Plus, WifiOff, Cpu, Info,
-  ArrowRight, Check, Smartphone,
+  Activity,
+  ArrowRight,
+  Brain,
+  CheckCircle2,
+  Clock3,
+  Gauge,
+  HeartPulse,
+  Lock,
+  MoonStar,
+  PhoneCall,
+  ShieldCheck,
+  Sparkles,
+  Target,
+  Thermometer,
+  TrendingUp,
+  Zap,
 } from "lucide-react";
 
-/* Design tokens */
 const T = {
-  bg: "#0A1A24",
-  bgGrid: "#0D2029",
-  surface: "#0F2431",
-  surface2: "#153140",
-  border: "#1D3F52",
-  borderSoft: "#16303F",
-  text: "#E7F3F3",
-  textDim: "#8FADB8",
-  textFaint: "#5D7A87",
-  accent: "#2DD4BF",
-  accent2: "#8B7CF6",
-  safe: "#4ADE80",
-  watch: "#FBBF24",
-  warning: "#F97316",
-  severe: "#EF4444",
+  bg: "#071b2a",
+  surface: "#0d2231",
+  panel: "#102d3b",
+  panelAlt: "#142f3f",
+  border: "#1d3f52",
+  borderSoft: "#183548",
+  text: "#eaf7f8",
+  textDim: "#9bb6bf",
+  textMuted: "#698796",
+  accent: "#4ee2c7",
+  accent2: "#8b7cf6",
+  warm: "#ffbf69",
+  good: "#60e39a",
+  danger: "#ff6b6b",
+  shadow: "rgba(10, 20, 26, 0.45)",
 };
 
-const LEVEL_COLOR = { safe: T.safe, watch: T.watch, warning: T.warning, severe: T.severe };
-const LEVEL_LABEL = { safe: "Normal", watch: "Watch", warning: "Warning", severe: "Severe" };
+const history = [
+  { day: "Mon", sleep: 6.8, recovery: 72, focus: 68, stress: 52, mood: 71 },
+  { day: "Tue", sleep: 7.4, recovery: 76, focus: 73, stress: 44, mood: 74 },
+  { day: "Wed", sleep: 6.9, recovery: 70, focus: 66, stress: 59, mood: 68 },
+  { day: "Thu", sleep: 7.9, recovery: 84, focus: 81, stress: 36, mood: 83 },
+  { day: "Fri", sleep: 7.2, recovery: 78, focus: 76, stress: 41, mood: 79 },
+  { day: "Sat", sleep: 8.3, recovery: 86, focus: 88, stress: 28, mood: 88 },
+  { day: "Sun", sleep: 7.6, recovery: 80, focus: 83, stress: 33, mood: 84 },
+];
 
-const REGIONS = {
-  "Mumbai":       { heat: 42, flood: 68, pollution: 54, outbreak: 38 },
-  "Delhi NCR":    { heat: 66, flood: 28, pollution: 89, outbreak: 44 },
-  "Chennai":      { heat: 61, flood: 63, pollution: 39, outbreak: 33 },
-  "Kolkata":      { heat: 53, flood: 58, pollution: 61, outbreak: 49 },
-  "Bengaluru":    { heat: 24, flood: 33, pollution: 41, outbreak: 28 },
-  "Patna":        { heat: 71, flood: 77, pollution: 64, outbreak: 56 },
-  "Ahmedabad":    { heat: 82, flood: 19, pollution: 57, outbreak: 34 },
-  "Guwahati":     { heat: 38, flood: 81, pollution: 45, outbreak: 47 },
-};
+const demoContacts = [
+  { id: "maya", name: "Maya Patel", phone: "+91 98765 43210" },
+  { id: "arjun", name: "Arjun Shah", phone: "+91 90000 11122" },
+  { id: "leah", name: "Leah Brown", phone: "+1 415 555 0180" },
+  { id: "samir", name: "Samir Khan", phone: "+91 98200 55011" },
+];
 
-const HAZARD_META = {
-  heat: { label: "Heat Stress", Icon: Thermometer, unit: "index",
-    tip: (lvl) => lvl === "severe" ? "IMD-style heatwave conditions. Avoid noon outdoor exposure, hydrate every 30 min, check on elderly neighbours."
-      : lvl === "warning" ? "High heat load today. Limit strenuous outdoor activity 12–4pm, keep ORS at home."
-      : lvl === "watch" ? "Warming trend. Keep water intake up and light-coloured, loose clothing handy." : "Comfortable range. No special precautions needed." },
-  flood: { label: "Flood Risk", Icon: CloudRain, unit: "index",
-    tip: (lvl) => lvl === "severe" ? "Heavy waterlogging likely. Keep documents & medicines in a waterproof bag, know your evacuation route, avoid wading through water."
-      : lvl === "warning" ? "Rising water-level risk. Charge devices, store 2 days of drinking water, avoid low-lying underpasses."
-      : lvl === "watch" ? "Monsoon build-up detected. Recheck your emergency kit." : "No significant flood signal." },
-  pollution: { label: "Air Quality", Icon: Wind, unit: "AQI-like",
-    tip: (lvl) => lvl === "severe" ? "Hazardous air. N95 outdoors, air purifier indoors, asthma/COPD users keep inhalers within reach."
-      : lvl === "warning" ? "Poor air quality. Reduce outdoor exertion, sensitive groups should mask up." 
-      : lvl === "watch" ? "Air quality dipping. Keep an eye on it if you have a respiratory condition." : "Air quality is acceptable." },
-  outbreak: { label: "Community Health Signal", Icon: Activity, unit: "anonymised index",
-    tip: (lvl) => lvl === "severe" ? "Elevated fever/flu-pattern signal nearby (anonymised, opt-in data). Consider a mask indoors, monitor symptoms closely."
-      : lvl === "warning" ? "Rising local syndromic signal. Basic hygiene precautions advised." 
-      : lvl === "watch" ? "Slight uptick in anonymised community symptom reports." : "No unusual community health signal." },
-};
+const average = (key) => history.reduce((sum, item) => sum + item[key], 0) / history.length;
 
-function levelOf(value) {
-  if (value <= 30) return "safe";
-  if (value <= 55) return "watch";
-  if (value <= 75) return "warning";
-  return "severe";
+function scoreFromMetrics(metric) {
+  if (metric >= 85) return "excellent";
+  if (metric >= 70) return "stable";
+  if (metric >= 55) return "watch";
+  return "low";
 }
 
-const VITAL_RULES = {
-  hr: {
-    label: "Heart Rate", unit: "bpm", Icon: Heart,
-    level: (v) => (v < 45 || v > 130) ? "severe" : (v < 50 || v > 115) ? "warning" : (v < 58 || v > 100) ? "watch" : "safe",
-  },
-  spo2: {
-    label: "SpO₂", unit: "%", Icon: Activity,
-    level: (v) => v < 88 ? "severe" : v < 92 ? "warning" : v < 95 ? "watch" : "safe",
-  },
-  hrv: {
-    label: "HRV", unit: "ms", Icon: TrendingUp,
-    level: (v) => v < 20 ? "severe" : v < 35 ? "warning" : v < 50 ? "watch" : "safe",
-  },
-  stress: {
-    label: "Stress Index", unit: "/100", Icon: Radio,
-    level: (v) => v > 82 ? "severe" : v > 62 ? "warning" : v > 42 ? "watch" : "safe",
-  },
+function getTrendLabel(value, baseline) {
+  const delta = value - baseline;
+  if (delta > 0) return `+${delta.toFixed(1)}`;
+  if (delta < 0) return `${delta.toFixed(1)}`;
+  return "0.0";
+}
+
+const defaultProfile = {
+  fullName: "",
+  email: "",
+  password: "",
+  age: "",
+  gender: "Female",
+  goal: "Improve daily energy",
+  activity: "Moderate",
+  focus: "Stress and sleep",
+  sleepTarget: "8 hours",
+  phone: "",
+  emergencyContact: "",
+  notes: "",
+  agree: false,
 };
-const LEVEL_SCORE = { safe: 12, watch: 42, warning: 70, severe: 92 };
 
-function clamp(v, lo, hi) { return Math.max(lo, Math.min(hi, v)); }
-function rand(lo, hi) { return lo + Math.random() * (hi - lo); }
+export default function App() {
+  const [screen, setScreen] = useState("landing");
+  const [authMode, setAuthMode] = useState("login");
+  const [profile, setProfile] = useState(defaultProfile);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
-function useVitalsStream() {
-  const [vitals, setVitals] = useState({ hr: 74, spo2: 97, hrv: 58, stress: 30 });
-  const [history, setHistory] = useState(() =>
-    Array.from({ length: 24 }, (_, i) => ({ t: i, hr: 74, hrv: 58 }))
-  );
-  const tick = useRef(24);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setVitals((prev) => {
-        const next = {
-          hr: clamp(prev.hr + rand(-3, 3), 48, 138),
-          spo2: clamp(prev.spo2 + rand(-1, 1), 84, 100),
-          hrv: clamp(prev.hrv + rand(-4, 4), 15, 90),
-          stress: clamp(prev.stress + rand(-5, 6), 5, 95),
-        };
-        tick.current += 1;
-        setHistory((h) => [...h.slice(-39), { t: tick.current, hr: next.hr, hrv: next.hrv }]);
-        return next;
-      });
-    }, 2200);
-    return () => clearInterval(id);
-  }, []);
-
-  return { vitals, history };
-}
-
-function useHazardStream(region) {
-  const base = REGIONS[region];
-  const [hazards, setHazards] = useState(base);
-
-  useEffect(() => { setHazards(base); }, [region]);
-
-  useEffect(() => {
-    const id = setInterval(() => {
-      setHazards((prev) => ({
-        heat: clamp(prev.heat + rand(-2, 2), 0, 100),
-        flood: clamp(prev.flood + rand(-2, 2), 0, 100),
-        pollution: clamp(prev.pollution + rand(-2, 2), 0, 100),
-        outbreak: clamp(prev.outbreak + rand(-1.5, 1.5), 0, 100),
-      }));
-    }, 3500);
-    return () => clearInterval(id);
-  }, []);
-
-  return hazards;
-}
-
-export default function RakshakHealthGuardian() {
-  const [showLanding, setShowLanding] = useState(true);
-  const { vitals, history } = useVitalsStream();
-  const [region, setRegion] = useState("Mumbai");
-  const hazards = useHazardStream(region);
-  const [shareAnon, setShareAnon] = useState(false);
-  const [offlineMode, setOfflineMode] = useState(false);
-  const [alerts, setAlerts] = useState([]);
-  const [showArchitecture, setShowArchitecture] = useState(false);
-  const [contacts, setContacts] = useState([
-    { name: "Amma", phone: "+91 98xxxxxx12" },
-    { name: "Dr. Rao (Family Physician)", phone: "+91 98xxxxxx45" },
-  ]);
-  const [newContact, setNewContact] = useState({ name: "", phone: "" });
-  const lastLevels = useRef({});
-
-  const vitalLevels = useMemo(() => {
-    const out = {};
-    for (const key of Object.keys(VITAL_RULES)) out[key] = VITAL_RULES[key].level(vitals[key]);
-    return out;
-  }, [vitals]);
-
-  const hazardLevels = useMemo(() => {
-    const out = {};
-    for (const key of Object.keys(hazards)) out[key] = levelOf(hazards[key]);
-    return out;
-  }, [hazards]);
-
-  const personalRisk = useMemo(() => {
-    const scores = Object.keys(vitalLevels).map((k) => LEVEL_SCORE[vitalLevels[k]]);
-    return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
-  }, [vitalLevels]);
-
-  const environmentalRisk = useMemo(() => {
-    const vals = Object.values(hazards);
-    return Math.round(vals.reduce((a, b) => a + b, 0) / vals.length);
-  }, [hazards]);
-
-  const compositeRisk = Math.round(personalRisk * 0.6 + environmentalRisk * 0.4);
-  const compositeLevel = levelOf(compositeRisk);
-
-  const pushAlert = useCallback((msg, level, source) => {
-    setAlerts((a) => [
-      { id: Date.now() + Math.random(), msg, level, source, time: new Date() },
-      ...a,
-    ].slice(0, 12));
-  }, []);
-
-  useEffect(() => {
-    const all = { ...vitalLevels, ...hazardLevels };
-    for (const key of Object.keys(all)) {
-      const lvl = all[key];
-      const prevLvl = lastLevels.current[key];
-      const rank = { safe: 0, watch: 1, warning: 2, severe: 3 };
-      if (lvl !== prevLvl && rank[lvl] >= 2 && rank[lvl] >= (rank[prevLvl] ?? 0)) {
-        const isVital = key in VITAL_RULES;
-        const label = isVital ? VITAL_RULES[key].label : HAZARD_META[key].label;
-        pushAlert(
-          `${label} moved to ${LEVEL_LABEL[lvl]}${isVital ? ` (${vitals[key].toFixed(0)} ${VITAL_RULES[key].unit})` : ""}`,
-          lvl,
-          isVital ? "On-device vitals" : "Regional hazard feed"
-        );
-      }
-      lastLevels.current[key] = lvl;
-    }
-  }, [vitalLevels, hazardLevels, vitals, pushAlert]);
-
-  const addContact = () => {
-    if (!newContact.name.trim() || !newContact.phone.trim()) return;
-    setContacts((c) => [...c, newContact]);
-    setNewContact({ name: "", phone: "" });
+  const updateProfile = (key, value) => {
+    setProfile((prev) => ({ ...prev, [key]: value }));
   };
 
-  if (showLanding) return <LandingPage onEnter={() => setShowLanding(false)} />;
+  const goToDashboard = () => {
+    setIsAuthenticated(true);
+    setScreen("dashboard");
+  };
 
+  const handleAuthSubmit = (e) => {
+    e.preventDefault();
+
+    if (!profile.email || !profile.password) {
+      return;
+    }
+
+    if (authMode === "signup" && (!profile.fullName || !profile.age || !profile.agree)) {
+      return;
+    }
+
+    goToDashboard();
+  };
+
+  if (screen === "landing") {
+    return <LandingPage onStart={() => setScreen("auth")} onLogin={() => { setAuthMode("login"); setScreen("auth"); }} />;
+  }
+
+  if (screen === "auth") {
+    return (
+      <AuthPage
+        authMode={authMode}
+        setAuthMode={setAuthMode}
+        profile={profile}
+        updateProfile={updateProfile}
+        onSubmit={handleAuthSubmit}
+        onBack={() => setScreen("landing")}
+      />
+    );
+  }
+
+  return <Dashboard profile={profile} onLogout={() => { setIsAuthenticated(false); setScreen("landing"); }} />;
+}
+
+function LandingPage({ onStart, onLogin }) {
   return (
-    <div style={{ background: T.bg, color: T.text, minHeight: "100vh", fontFamily: "'Inter', system-ui, sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@500;600&display=swap');
-        .disp { font-family: 'Space Grotesk', system-ui, sans-serif; }
-        .mono { font-family: 'IBM Plex Mono', monospace; }
-        .rk-scroll::-webkit-scrollbar { width: 6px; }
-        .rk-scroll::-webkit-scrollbar-thumb { background: ${T.border}; border-radius: 4px; }
-
-        @keyframes rk-pulse-scroll {
-          0% { transform: translateX(0); }
-          100% { transform: translateX(-50%); }
+        * { box-sizing: border-box; }
+        body { margin: 0; background: ${T.bg}; }
+        a { color: inherit; text-decoration: none; }
+        .landing-shell { max-width: 1220px; margin: 0 auto; padding: 32px 22px 56px; }
+        .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: rgba(78, 226, 199, 0.14); border: 1px solid rgba(78, 226, 199, 0.4); display: flex; align-items: center; justify-content: center; }
+        .nav-actions { display: flex; gap: 12px; align-items: center; }
+        .ghost-btn, .primary-btn { border-radius: 12px; padding: 12px 18px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+        .ghost-btn { background: transparent; border-color: ${T.border}; color: ${T.text}; }
+        .primary-btn { background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; }
+        .hero { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 24px; align-items: center; }
+        .hero-panel { padding: 34px; border-radius: 28px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(17,42,54,0.98), rgba(9,25,35,0.98)); box-shadow: 0 22px 60px rgba(0,0,0,0.30); position: relative; overflow: hidden; }
+        .hero-panel::before { content: ""; position: absolute; inset: -30% 30% auto auto; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(78,226,199,0.22), transparent 68%); }
+        .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: #d6ccff; letter-spacing: 0.14em; text-transform: uppercase; padding: 8px 12px; border-radius: 999px; background: rgba(139,124,246,0.08); border: 1px solid rgba(139,124,246,0.25); }
+        h1 { margin: 18px 0 16px; font-size: clamp(2.8rem, 6vw, 5rem); line-height: 0.96; letter-spacing: -0.08em; }
+        .gradient-text { background: linear-gradient(135deg, #effcf6 0%, #61dcc5 35%, #b7d0ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .landing-copy { max-width: 620px; color: ${T.textDim}; font-size: 17px; line-height: 1.7; }
+        .cta-group { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+        .mini-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
+        .mini-stat { padding: 14px 16px; border: 1px solid ${T.border}; background: rgba(255,255,255,0.02); border-radius: 16px; }
+        .mini-stat .num { font-size: 26px; font-weight: 700; letter-spacing: -0.06em; }
+        .mini-stat .label { color: ${T.textDim}; font-size: 12px; }
+        .feature-panel { padding: 24px; border-radius: 28px; border: 1px solid ${T.border}; background: rgba(15,36,49,0.9); }
+        .feature-card { padding: 18px; border-radius: 18px; border: 1px solid ${T.borderSoft}; background: ${T.panelAlt}; margin-bottom: 14px; }
+        .feature-card:last-child { margin-bottom: 0; }
+        .feature-card h3 { font-size: 18px; margin: 12px 0 8px; }
+        .feature-card p { margin: 0; color: ${T.textDim}; line-height: 1.6; font-size: 14px; }
+        .feature-row { display: flex; align-items: center; gap: 10px; }
+        .visual-card { padding: 18px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(11,27,37,0.9), rgba(15,35,48,0.9)); box-shadow: 0 24px 50px rgba(0,0,0,0.25); }
+        .visual-top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 18px; }
+        .visual-pill { display:inline-flex; align-items:center; gap:8px; padding: 7px 10px; border-radius: 999px; background: rgba(78,226,199,0.09); border: 1px solid rgba(78,226,199,0.25); color: ${T.accent}; font-size: 12px; }
+        .mini-visual-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+        .mini-panel { background: rgba(255,255,255,0.02); border: 1px solid ${T.borderSoft}; border-radius: 16px; padding: 12px; }
+        .mini-panel h4 { margin: 0 0 10px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: ${T.textMuted}; }
+        .mini-panel .big { font-size: 28px; font-weight: 700; letter-spacing: -0.06em; }
+        .mini-panel .sub { color: ${T.textDim}; font-size: 12px; margin-top: 6px; }
+        .visual-chart { height: 110px; margin-top: 14px; border-radius: 14px; background: linear-gradient(180deg, rgba(78,226,199,0.12), rgba(139,124,246,0.06)); border: 1px solid ${T.borderSoft}; position: relative; overflow: hidden; }
+        .visual-chart::before { content: ""; position:absolute; inset: 12% 8% 16% 8%; background: linear-gradient(180deg, rgba(78,226,199,0), rgba(78,226,199,0.5)); clip-path: polygon(0% 100%, 16% 64%, 30% 70%, 44% 50%, 56% 58%, 74% 26%, 100% 18%, 100% 100%); }
+        .visual-chart::after { content: ""; position:absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, transparent 40%, rgba(255,255,255,0.06) 60%, transparent 80%); }
+        .benefits { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+        .benefit { padding: 24px 18px; border-radius: 20px; border: 1px solid ${T.border}; background: rgba(13,34,49,0.8); }
+        .benefit h4 { margin: 12px 0 8px; font-size: 20px; }
+        .benefit p { margin: 0; color: ${T.textDim}; font-size: 14px; line-height: 1.6; }
+        .journey { margin-top: 30px; padding: 28px 24px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(13,34,49,0.8), rgba(9,25,35,0.92)); }
+        .journey-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 18px; }
+        .journey-header h3 { margin:0; font-size: clamp(1.5rem, 2vw, 2.1rem); letter-spacing:-0.05em; }
+        .journey-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:14px; }
+        .journey-card { padding: 18px; border-radius: 18px; border: 1px solid ${T.borderSoft}; background: rgba(255,255,255,0.02); }
+        .journey-card .step { display:inline-flex; align-items:center; justify-content:center; width: 34px; height:34px; border-radius:12px; background: rgba(78,226,199,0.12); border: 1px solid rgba(78,226,199,0.35); color: ${T.accent}; font-weight: 700; }
+        .journey-card h4 { margin: 12px 0 8px; font-size: 20px; }
+        .journey-card p { margin:0; color: ${T.textDim}; line-height:1.6; font-size:14px; }
+        @media (max-width: 900px) {
+          .hero, .benefits, .mini-stats, .journey-grid { grid-template-columns: 1fr; }
+          .nav { flex-wrap: wrap; }
         }
-        .rk-wave-track {
-          display: flex;
-          width: 200%;
-          animation: rk-pulse-scroll 6s linear infinite;
-        }
-        .rk-wave-track svg { flex-shrink: 0; }
-
-        @keyframes rk-blink { 0%,100% { opacity: 1; } 50% { opacity: 0.25; } }
-        .rk-live-dot { animation: rk-blink 1.6s ease-in-out infinite; }
-
-        .rk-card { transition: border-color .2s ease, transform .2s ease; }
-        .rk-card:hover { border-color: ${T.accent}55; }
-
-        input[type="text"] { outline: none; }
       `}</style>
 
-      {/* HERO */}
-      <div style={{ borderBottom: `1px solid ${T.border}`, background: `radial-gradient(1100px 420px at 15% -10%, ${T.accent}14, transparent 60%), radial-gradient(900px 380px at 100% 0%, ${T.accent2}12, transparent 55%)` }}>
-        <div style={{ maxWidth: 1180, margin: "0 auto", padding: "28px 24px 22px" }}>
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", flexWrap: "wrap", gap: 16 }}>
-            <div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div style={{ width: 34, height: 34, borderRadius: 10, background: `${T.accent}20`, display: "flex", alignItems: "center", justifyContent: "center", border: `1px solid ${T.accent}40` }}>
-                  <ShieldCheck size={18} color={T.accent} />
-                </div>
-                <span className="disp" style={{ fontSize: 22, fontWeight: 700, letterSpacing: 0.2 }}>Rakshak</span>
-                <span className="mono" style={{ fontSize: 10, color: T.textFaint, border: `1px solid ${T.borderSoft}`, borderRadius: 6, padding: "2px 6px" }}>ON-DEVICE</span>
-              </div>
-              <p style={{ color: T.textDim, fontSize: 13.5, marginTop: 6, maxWidth: 480, lineHeight: 1.5 }}>
-                Private, on-device early warning for your body and your surroundings —
-                built for India's heat, floods, pollution, and disease waves.
-              </p>
-            </div>
+      <div className="landing-shell">
+        <nav className="nav">
+          <div className="brand">
+            <div className="brand-mark"><ShieldCheck size={18} color={T.accent} /></div>
+            <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em" }}>Rakshak</div>
+          </div>
+          <div className="nav-actions">
+            <button className="ghost-btn" onClick={onLogin}>Login</button>
+            <button className="primary-btn" onClick={onStart}>Get started</button>
+          </div>
+        </nav>
 
-            <div className="rk-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: "14px 18px", minWidth: 220 }}>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                <span style={{ fontSize: 11, color: T.textFaint, textTransform: "uppercase", letterSpacing: 0.6 }}>Composite Risk</span>
-                <span style={{ width: 7, height: 7, borderRadius: 99, background: LEVEL_COLOR[compositeLevel] }} className="rk-live-dot" />
-              </div>
-              <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginTop: 4 }}>
-                <span className="disp mono" style={{ fontSize: 34, fontWeight: 700, color: LEVEL_COLOR[compositeLevel] }}>{compositeRisk}</span>
-                <span style={{ fontSize: 13, color: T.textDim }}>/ 100 · {LEVEL_LABEL[compositeLevel]}</span>
-              </div>
-              <div style={{ display: "flex", gap: 10, marginTop: 8, fontSize: 11, color: T.textFaint }}>
-                <span>You: <b className="mono" style={{ color: T.text }}>{personalRisk}</b></span>
-                <span>Region: <b className="mono" style={{ color: T.text }}>{environmentalRisk}</b></span>
-              </div>
+        <section className="hero">
+          <div className="hero-panel">
+            <div className="eyebrow"><Sparkles size={12} /> Privacy-first health intelligence</div>
+            <h1>Stay protected. <span className="gradient-text">Act earlier.</span></h1>
+            <div className="landing-copy">
+              Personal Health Companion uses on-device AI to continuously monitor physiological and environmental signals, detect anomalies in real time, and issue early warnings for extreme weather, health risks, and dangerous changes in your condition — all without sending your data to the cloud.
+            </div>
+            <div className="cta-group">
+              <button className="primary-btn" onClick={onStart}>Create account <ArrowRight size={16} /></button>
+              <button className="ghost-btn" onClick={onLogin}>Already have an account</button>
+            </div>
+            <div className="mini-stats">
+              <div className="mini-stat"><div className="num">24/7</div><div className="label">offline protection</div></div>
+              <div className="mini-stat"><div className="num">AI</div><div className="label">on-device analysis</div></div>
+              <div className="mini-stat"><div className="num">SOS</div><div className="label">disaster alerts</div></div>
             </div>
           </div>
 
-          <div style={{ marginTop: 20, borderRadius: 14, overflow: "hidden", border: `1px solid ${T.borderSoft}`, background: T.bgGrid, position: "relative", height: 84 }}>
-            <div className="rk-wave-track" style={{ height: 84 }}>
-              {[0, 1].map((copy) => (
-                <PulseWave key={copy} color={LEVEL_COLOR[compositeLevel]} />
-              ))}
+          <div className="visual-card">
+            <div className="visual-top">
+              <div className="visual-pill"><ShieldCheck size={12} color={T.accent} /> Live risk scan</div>
+              <div style={{ color: T.textDim, fontSize: 12 }}>14:20</div>
             </div>
-            <div style={{ position: "absolute", left: 14, top: 10, fontSize: 10, color: T.textFaint, letterSpacing: 1, textTransform: "uppercase" }}>
-              live vitals · simulated on-device feed
+
+            <img
+              src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=900&q=80"
+              alt="Health monitoring"
+              style={{
+                width: "100%",
+                height: 260,
+                objectFit: "cover",
+                borderRadius: 18,
+                border: `1px solid ${T.borderSoft}`,
+                display: "block",
+                marginBottom: 14,
+              }}
+            />
+
+            <div className="mini-visual-grid">
+              <div className="mini-panel">
+                <h4>Health</h4>
+                <div className="big" style={{ color: T.accent }}>86</div>
+                <div className="sub">Stable recovery</div>
+              </div>
+              <div className="mini-panel">
+                <h4>Environment</h4>
+                <div className="big" style={{ color: T.warm }}>68</div>
+                <div className="sub">Heat caution</div>
+              </div>
+            </div>
+
+            <div className="visual-chart" aria-label="Health trend chart" />
+
+            <div style={{ marginTop: 14, display: 'flex', justifyContent: 'space-between', gap: 10 }}>
+              <div className="mini-panel" style={{ flex: 1 }}>
+                <h4>Air</h4>
+                <div className="big" style={{ fontSize: 20, color: T.accent2 }}>42 AQI</div>
+              </div>
+              <div className="mini-panel" style={{ flex: 1 }}>
+                <h4>UV</h4>
+                <div className="big" style={{ fontSize: 20, color: T.warm }}>7/10</div>
+              </div>
             </div>
           </div>
-        </div>
+        </section>
+
+        <section className="journey">
+          <div className="journey-header">
+            <h3>How it works</h3>
+            <div className="panel-copy" style={{ color: T.textDim }}>On-device, resilient, life-aware</div>
+          </div>
+          <div className="journey-grid">
+            <div className="journey-card">
+              <div className="step">1</div>
+              <h4>Capture key signals</h4>
+              <p>Monitor physiology and environment directly from wearables and mobile sensors without exposing data externally.</p>
+            </div>
+            <div className="journey-card">
+              <div className="step">2</div>
+              <h4>Detect risk in real time</h4>
+              <p>Run local AI analysis to identify early warnings for heat stress, illness, anxiety spikes, and dangerous conditions.</p>
+            </div>
+            <div className="journey-card">
+              <div className="step">3</div>
+              <h4>Respond fast</h4>
+              <p>Get actionable alerts and emergency guidance during extreme weather events or health emergencies, even offline.</p>
+            </div>
+          </div>
+        </section>
+
+        <section className="benefits">
+          <div className="benefit">
+            <ShieldCheck size={22} color={T.accent} />
+            <h4>Private</h4>
+            <p>All decision-making happens on-device so personal health data remains private, secure, and under user control.</p>
+          </div>
+          <div className="benefit">
+            <TrendingUp size={22} color={T.accent2} />
+            <h4>Actionable</h4>
+            <p>Real-time anomaly detection turns small changes into precise warnings and health actions before the risks grow.</p>
+          </div>
+          <div className="benefit">
+            <Target size={22} color={T.warm} />
+            <h4>Disaster aware</h4>
+            <p>Built to support emergency readiness during extreme weather and crisis conditions with clear guidance and fast alerts.</p>
+          </div>
+        </section>
       </div>
+    </div>
+  );
+}
 
-      <div style={{ maxWidth: 1180, margin: "0 auto", padding: "26px 24px 60px", display: "grid", gridTemplateColumns: "1.55fr 1fr", gap: 22 }}>
-        <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+function AuthPage({ authMode, setAuthMode, profile, updateProfile, onSubmit, onBack }) {
+  return (
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+      <style>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; }
+        .auth-box { width: min(980px, 100%); background: linear-gradient(180deg, rgba(16,45,59,0.98), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 28px; box-shadow: 0 28px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .auth-top { padding: 20px 28px; border-bottom: 1px solid ${T.border}; display:flex; justify-content:space-between; align-items:center; }
+        .switch { display:flex; gap: 8px; background: ${T.surface}; padding: 6px; border-radius: 12px; border: 1px solid ${T.border}; }
+        .toggle { border: none; background: transparent; color: ${T.textDim}; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; }
+        .toggle.active { background: rgba(78,226,199,0.12); color: ${T.text}; border: 1px solid rgba(78,226,199,0.35); }
+        .auth-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; }
+        .info-panel { padding: 28px; background: linear-gradient(180deg, rgba(78,226,199,0.08), rgba(139,124,246,0.04)); border-right: 1px solid ${T.border}; }
+        .info-panel h2 { margin: 18px 0 12px; font-size: 34px; letter-spacing: -0.05em; }
+        .info-panel p { margin: 0; line-height: 1.7; color: ${T.textDim}; }
+        .info-list { margin-top: 22px; display:grid; gap: 12px; }
+        .list-item { display:flex; align-items:flex-start; gap: 10px; padding: 12px 14px; background: rgba(255,255,255,0.02); border: 1px solid ${T.border}; border-radius: 14px; color: ${T.textDim}; }
+        .form-panel { padding: 28px; }
+        .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+        label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: ${T.textMuted}; }
+        input, select, textarea { width: 100%; border-radius: 12px; border: 1px solid ${T.border}; background: rgba(6,18,26,0.8); color: ${T.text}; padding: 12px 14px; font-size: 14px; }
+        input::placeholder, textarea::placeholder { color: ${T.textMuted}; }
+        .span-2 { grid-column: span 2; }
+        .checkbox-row { display:flex; align-items:flex-start; gap: 10px; color: ${T.textDim}; font-size: 13px; margin-top: 8px; }
+        .checkbox-row input { width: 18px; height: 18px; accent-color: ${T.accent}; }
+        .submit-btn { margin-top: 18px; width: 100%; padding: 14px 18px; border: none; border-radius: 12px; background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; font-weight: 800; cursor: pointer; }
+        @media (max-width: 760px) {
+          .auth-grid { grid-template-columns: 1fr; }
+          .form-grid { grid-template-columns: 1fr; }
+          .span-2 { grid-column: span 1; }
+        }
+      `}</style>
 
-          <Section title="Your Vitals" icon={<Heart size={15} color={T.accent} />} note="Simulated wearable stream, processed on-device">
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
-              {Object.entries(VITAL_RULES).map(([key, rule]) => (
-                <VitalCard key={key} rule={rule} value={vitals[key]} level={vitalLevels[key]} />
-              ))}
+      <div className="auth-box">
+        <div className="auth-top">
+          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+            <div style={{ width: 36, height: 36, borderRadius: 12, background: "rgba(78,226,199,0.12)", border: `1px solid ${T.border}`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ShieldCheck size={18} color={T.accent} />
             </div>
-          </Section>
-
-          <Section title="24-min Trend" icon={<TrendingUp size={15} color={T.accent} />} note="Heart rate & HRV — the pattern early-warning looks at">
-            <div style={{ height: 190 }}>
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={history} margin={{ top: 8, right: 8, left: -18, bottom: 0 }}>
-                  <CartesianGrid stroke={T.borderSoft} vertical={false} />
-                  <XAxis dataKey="t" tick={false} stroke={T.borderSoft} />
-                  <YAxis tick={{ fill: T.textFaint, fontSize: 10 }} stroke={T.borderSoft} width={30} />
-                  <Tooltip contentStyle={{ background: T.surface2, border: `1px solid ${T.border}`, borderRadius: 8, fontSize: 12 }} labelFormatter={() => ""} />
-                  <Line type="monotone" dataKey="hr" stroke={T.accent} strokeWidth={2} dot={false} name="Heart rate" />
-                  <Line type="monotone" dataKey="hrv" stroke={T.accent2} strokeWidth={2} dot={false} name="HRV" />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-            <div style={{ display: "flex", gap: 16, fontSize: 11, color: T.textDim, marginTop: 2 }}>
-              <LegendDot color={T.accent} label="Heart rate (bpm)" />
-              <LegendDot color={T.accent2} label="HRV (ms)" />
-            </div>
-          </Section>
-
-          <Section
-            title="Disaster & Health-Wave Resilience"
-            icon={<ShieldAlert size={15} color={T.accent} />}
-            note="Simulated regional feed — stands in for IMD / CWC / CPCB / IDSP"
-            right={
-              <RegionPicker region={region} setRegion={setRegion} />
-            }
-          >
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
-              {Object.entries(HAZARD_META).map(([key, meta]) => (
-                <HazardCard key={key} meta={meta} value={hazards[key]} level={hazardLevels[key]} />
-              ))}
-            </div>
-          </Section>
-
-          <div className="rk-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, overflow: "hidden" }}>
-            <button
-              onClick={() => setShowArchitecture((s) => !s)}
-              style={{ width: "100%", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 18px", background: "transparent", border: "none", cursor: "pointer", color: T.text }}
-            >
-              <span style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13.5, fontWeight: 600 }}>
-                <Cpu size={15} color={T.accent2} /> How the on-device intelligence works
-              </span>
-              {showArchitecture ? <ChevronUp size={16} color={T.textDim} /> : <ChevronDown size={16} color={T.textDim} />}
-            </button>
-            {showArchitecture && (
-              <div style={{ padding: "0 18px 18px", color: T.textDim, fontSize: 13, lineHeight: 1.7 }}>
-                <ArchPoint text="A lightweight model runs locally on the phone or a bedside hub — no vitals are ever sent to a server for this scoring." />
-                <ArchPoint text="Rules + learned baselines flag drift (e.g. resting HR climbing while HRV falls) days before symptoms are obvious." />
-                <ArchPoint text="Regional hazard levels come from public feeds (IMD heat advisories, CWC flood forecasts, CPCB/SAFAR AQI); these combine with your personal baseline so guidance is adjusted for the day, not generic." />
-                <ArchPoint text="Community outbreak signal is optional and privacy-preserving: only anonymised, aggregated, k-anonymized patterns are ever shared, never raw symptoms or identity." />
-                <ArchPoint text="Offline-first: cached hazard data and on-device inference keep working when the network drops mid-disaster." />
-              </div>
-            )}
+            <div style={{ fontSize: 20, fontWeight: 700 }}>Rakshak</div>
+          </div>
+          <div className="switch">
+            <button className={`toggle ${authMode === "login" ? "active" : ""}`} onClick={() => setAuthMode("login")}>Login</button>
+            <button className={`toggle ${authMode === "signup" ? "active" : ""}`} onClick={() => setAuthMode("signup")}>Create account</button>
           </div>
         </div>
 
-        <div style={{ display: "flex", flexDirection: "column", gap: 22, minWidth: 0 }}>
+        <div className="auth-grid">
+          <div className="info-panel">
+            <div className="eyebrow" style={{ display: "inline-flex" }}><Sparkles size={12} /> Your wellness profile</div>
+            <h2>{authMode === "login" ? "Welcome back" : "Start your baseline"}</h2>
+            <p>
+              {authMode === "login"
+                ? "Securely sign in to revisit your health baseline, risk alerts, and personalized safety guidance while keeping your data protected on-device."
+                : "Create your profile so the companion can personalize offline monitoring, anomaly detection, and emergency readiness around your health and environment."}
+            </p>
 
-          <Section title="Early-Warning Feed" icon={<BellRing size={15} color={T.warning} />} note={alerts.length ? `${alerts.length} alert${alerts.length > 1 ? "s" : ""}` : "All clear"}>
-            <div className="rk-scroll" style={{ maxHeight: 260, overflowY: "auto", display: "flex", flexDirection: "column", gap: 8 }}>
-              {alerts.length === 0 && (
-                <div style={{ display: "flex", alignItems: "center", gap: 8, color: T.textFaint, fontSize: 12.5, padding: "10px 2px" }}>
-                  <ShieldCheck size={14} /> No early warnings right now — you'll see them here the moment something drifts.
+            <div className="info-list">
+              <div className="list-item"><CheckCircle2 size={16} color={T.accent} /> <span>Weekly health trends and scores</span></div>
+              <div className="list-item"><Clock3 size={16} color={T.accent2} /> <span>Personalized recovery and routine guidance</span></div>
+              <div className="list-item"><Lock size={16} color={T.warm} /> <span>Private, secure, and goal-focused</span></div>
+            </div>
+          </div>
+
+          <div className="form-panel">
+            <form onSubmit={onSubmit}>
+              <div className="form-grid">
+                {authMode === "signup" && (
+                  <>
+                    <label className="span-2">
+                      Full name
+                      <input value={profile.fullName} onChange={(e) => updateProfile("fullName", e.target.value)} placeholder="Enter your full name" />
+                    </label>
+                    <label>
+                      Age
+                      <input value={profile.age} onChange={(e) => updateProfile("age", e.target.value)} placeholder="Age" />
+                    </label>
+                    <label>
+                      Gender
+                      <select value={profile.gender} onChange={(e) => updateProfile("gender", e.target.value)}>
+                        <option>Female</option>
+                        <option>Male</option>
+                        <option>Non-binary</option>
+                        <option>Prefer not to say</option>
+                      </select>
+                    </label>
+                  </>
+                )}
+
+                <label className={authMode === "signup" ? "span-2" : ""}>
+                  Email address
+                  <input type="email" value={profile.email} onChange={(e) => updateProfile("email", e.target.value)} placeholder="you@example.com" />
+                </label>
+
+                <label className={authMode === "signup" ? "span-2" : ""}>
+                  Password
+                  <input type="password" value={profile.password} onChange={(e) => updateProfile("password", e.target.value)} placeholder="Enter password" />
+                </label>
+
+                {authMode === "signup" && (
+                  <>
+                    <label>
+                      Wellness goal
+                      <select value={profile.goal} onChange={(e) => updateProfile("goal", e.target.value)}>
+                        <option>Improve daily energy</option>
+                        <option>Sleep better</option>
+                        <option>Reduce stress</option>
+                        <option>Boost focus</option>
+                        <option>Improve consistency</option>
+                      </select>
+                    </label>
+                    <label>
+                      Activity level
+                      <select value={profile.activity} onChange={(e) => updateProfile("activity", e.target.value)}>
+                        <option>Low</option>
+                        <option>Moderate</option>
+                        <option>High</option>
+                      </select>
+                    </label>
+                    <label>
+                      Focus area
+                      <select value={profile.focus} onChange={(e) => updateProfile("focus", e.target.value)}>
+                        <option>Stress and sleep</option>
+                        <option>Mood and recovery</option>
+                        <option>Energy and productivity</option>
+                      </select>
+                    </label>
+                    <label>
+                      Sleep target
+                      <select value={profile.sleepTarget} onChange={(e) => updateProfile("sleepTarget", e.target.value)}>
+                        <option>7 hours</option>
+                        <option>8 hours</option>
+                        <option>9 hours</option>
+                      </select>
+                    </label>
+                    <label>
+                      Phone number
+                      <input value={profile.phone} onChange={(e) => updateProfile("phone", e.target.value)} placeholder="+1 234 567 890" />
+                    </label>
+                    <label>
+                      Emergency contact
+                      <input value={profile.emergencyContact} onChange={(e) => updateProfile("emergencyContact", e.target.value)} placeholder="Name and phone" />
+                    </label>
+                    <label className="span-2">
+                      Personal notes
+                      <textarea rows={4} value={profile.notes} onChange={(e) => updateProfile("notes", e.target.value)} placeholder="Add any health goals, routines, or notes you want the AI to consider." />
+                    </label>
+                  </>
+                )}
+              </div>
+
+              {authMode === "signup" && (
+                <div className="checkbox-row">
+                  <input type="checkbox" checked={profile.agree} onChange={(e) => updateProfile("agree", e.target.checked)} />
+                  <span>I agree to keep my wellness data private and allow AI suggestions to personalize my health plan.</span>
                 </div>
               )}
-              {alerts.map((a) => (
-                <div key={a.id} style={{ display: "flex", gap: 10, padding: "10px 12px", borderRadius: 10, background: T.surface2, border: `1px solid ${LEVEL_COLOR[a.level]}33` }}>
-                  <div style={{ width: 6, borderRadius: 4, background: LEVEL_COLOR[a.level], flexShrink: 0 }} />
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: 12.5, color: T.text }}>{a.msg}</div>
-                    <div style={{ fontSize: 10.5, color: T.textFaint, marginTop: 2 }}>{a.source} · {a.time.toLocaleTimeString()}</div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </Section>
 
-          <Section title="Privacy, By Design" icon={<Lock size={15} color={T.accent2} />}>
-            <PrivacyRow
-              title="Vitals stay on this device"
-              desc="Heart rate, SpO₂, HRV and stress readings are processed and stored locally. They are never uploaded."
-              locked
-            />
-            <ToggleRow
-              title="Share anonymised trend for public health"
-              desc="Off by default. If enabled, only a differentially-private aggregate signal (no raw data, no identity) helps your local health authority spot community-wide waves earlier."
-              value={shareAnon}
-              onChange={setShareAnon}
-            />
-            <ToggleRow
-              title="Offline mode"
-              desc="Simulates a disaster network outage. On-device scoring and cached hazard data keep working; only live hazard updates pause."
-              value={offlineMode}
-              onChange={setOfflineMode}
-              icon={offlineMode ? <WifiOff size={13} color={T.warning} /> : null}
-            />
-          </Section>
-
-          <Section title="Emergency Support" icon={<Siren size={15} color={T.severe} />}>
-            <button
-              style={{
-                width: "100%", padding: "12px 14px", borderRadius: 12, border: `1px solid ${T.severe}55`,
-                background: `${T.severe}18`, color: T.severe, fontWeight: 600, fontSize: 13.5,
-                display: "flex", alignItems: "center", justifyContent: "center", gap: 8, cursor: "pointer", marginBottom: 14,
-              }}
-              onClick={() => pushAlert("SOS drafted — would notify emergency contacts with your composite risk and location.", "severe", "Manual SOS")}
-            >
-              <Siren size={16} /> Send SOS to emergency contacts
-            </button>
-
-            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-              {contacts.map((c, i) => (
-                <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "9px 12px", borderRadius: 10, background: T.surface2, border: `1px solid ${T.borderSoft}` }}>
-                  <div>
-                    <div style={{ fontSize: 12.5, color: T.text }}>{c.name}</div>
-                    <div className="mono" style={{ fontSize: 11, color: T.textFaint }}>{c.phone}</div>
-                  </div>
-                  <Phone size={14} color={T.textDim} />
-                </div>
-              ))}
-            </div>
-
-            <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-              <input
-                placeholder="Name" value={newContact.name}
-                onChange={(e) => setNewContact((c) => ({ ...c, name: e.target.value }))}
-                style={{ flex: 1, background: T.bgGrid, border: `1px solid ${T.borderSoft}`, borderRadius: 8, padding: "8px 10px", color: T.text, fontSize: 12 }}
-              />
-              <input
-                placeholder="Phone" value={newContact.phone}
-                onChange={(e) => setNewContact((c) => ({ ...c, phone: e.target.value }))}
-                style={{ flex: 1, background: T.bgGrid, border: `1px solid ${T.borderSoft}`, borderRadius: 8, padding: "8px 10px", color: T.text, fontSize: 12 }}
-              />
-              <button onClick={addContact} style={{ background: T.accent, border: "none", borderRadius: 8, padding: "0 10px", cursor: "pointer", display: "flex", alignItems: "center" }}>
-                <Plus size={15} color="#04211D" />
+              <button type="submit" className="submit-btn">
+                {authMode === "login" ? "Login to dashboard" : "Create account"}
               </button>
-            </div>
-          </Section>
+            </form>
+          </div>
         </div>
       </div>
     </div>
   );
 }
 
-/* Sub-components */
-function LandingPage({ onEnter }) {
-  return (
-    <div className="landing-shell">
-      <style>{`
-        .landing-shell {
-          min-height: 100vh;
-          overflow: hidden;
-          color: ${T.text};
-          background: ${T.bg};
-          font-family: 'Inter', system-ui, sans-serif;
-          background-image: linear-gradient(${T.borderSoft}33 1px, transparent 1px), linear-gradient(90deg, ${T.borderSoft}33 1px, transparent 1px), radial-gradient(800px 520px at 72% 22%, ${T.accent}16, transparent 68%);
-          background-size: 56px 56px, 56px 56px, auto;
+function Dashboard({ profile, onLogout }) {
+  const [selectedDay, setSelectedDay] = useState(history.length - 1);
+  const [statusText, setStatusText] = useState("Status live");
+  const [activeTab, setActiveTab] = useState("health");
+  const [deviceLocation, setDeviceLocation] = useState({
+    lat: null,
+    lng: null,
+    label: "Checking device location...",
+    permission: "prompt",
+    error: "",
+  });
+  const [emergencyContacts, setEmergencyContacts] = useState(demoContacts.slice(0, 4));
+  const [showContactPicker, setShowContactPicker] = useState(false);
+  const [selectedContactIds, setSelectedContactIds] = useState(demoContacts.map((contact) => contact.id));
+  const [phoneConnectMode, setPhoneConnectMode] = useState("choose");
+  const [enteredPairingCode, setEnteredPairingCode] = useState("");
+  const [deviceAccess, setDeviceAccess] = useState({
+    contacts: false,
+    gps: false,
+    wearables: false,
+  });
+
+  const pairingCode = "RAK-4821";
+
+  const current = history[selectedDay];
+  const liveLocation = deviceLocation.lat !== null && deviceLocation.lng !== null
+    ? {
+        label: "Current device location",
+        lat: deviceLocation.lat,
+        lng: deviceLocation.lng,
+        googleMapsUrl: `https://www.google.com/maps?q=${deviceLocation.lat},${deviceLocation.lng}&z=15`,
+      }
+    : {
+        label: "Live location unavailable",
+        lat: null,
+        lng: null,
+        googleMapsUrl: "https://www.google.com/maps",
+      };
+
+  const environment = {
+    airQuality: 42,
+    temp: 31,
+    humidity: 68,
+    uvIndex: 7,
+    pollen: 58,
+  };
+
+  const isDangerState = current.stress > 45 || environment.temp > 30 || environment.airQuality > 45;
+
+  const applyEmergencyContacts = (contacts) => {
+    const mappedContacts = contacts
+      .map((contact) => ({
+        name: contact.name || "Emergency contact",
+        phone: contact.phone || "",
+      }))
+      .filter((contact) => contact.phone.replace(/\D/g, ""));
+
+    setEmergencyContacts(mappedContacts.slice(0, 5));
+    setStatusText(mappedContacts.length ? "Device contacts connected" : "No valid contacts found");
+    return mappedContacts;
+  };
+
+  const connectToDeviceContacts = async () => {
+    if (!("contacts" in navigator) || !navigator.contacts?.select) {
+      setShowContactPicker(true);
+      setStatusText("Select emergency contacts");
+      return;
+    }
+
+    try {
+      const selected = await navigator.contacts.select(["name", "tel"], { multiple: true });
+      const mappedContacts = selected
+        .map((contact) => {
+          const phone = contact.tel?.[0]?.value || "";
+          const name = contact.name?.[0] || contact.name || "Emergency contact";
+          return { name, phone };
+        })
+        .filter((contact) => contact.phone.trim());
+
+      applyEmergencyContacts(mappedContacts);
+    } catch (error) {
+      setShowContactPicker(true);
+      setStatusText("Contact access denied. Select a fallback contact list.");
+    }
+  };
+
+  const handleContactPickerSubmit = () => {
+    const chosenContacts = demoContacts.filter((contact) => selectedContactIds.includes(contact.id));
+    setShowContactPicker(false);
+    setPhoneConnectMode("choose");
+    setEnteredPairingCode("");
+    applyEmergencyContacts(chosenContacts.length ? chosenContacts : demoContacts.slice(0, 4));
+    setStatusText(chosenContacts.length ? "Fallback contacts selected" : "Using saved emergency contacts");
+  };
+
+  const requestConnectedDeviceAccess = async () => {
+    let contactsGranted = false;
+    let gpsGranted = false;
+
+    if ("contacts" in navigator && navigator.contacts?.select) {
+      try {
+        const selected = await navigator.contacts.select(["name", "tel"], { multiple: true });
+        const mappedContacts = selected
+          .map((contact) => {
+            const phone = contact.tel?.[0]?.value || "";
+            const name = contact.name?.[0] || contact.name || "Emergency contact";
+            return { name, phone };
+          })
+          .filter((contact) => contact.phone.trim());
+
+        if (mappedContacts.length) {
+          applyEmergencyContacts(mappedContacts);
+          contactsGranted = true;
         }
-        .landing-nav, .landing-main, .landing-footer { max-width: 1180px; margin: 0 auto; padding-left: 32px; padding-right: 32px; }
-        .landing-nav { padding-top: 26px; display: flex; align-items: center; justify-content: space-between; }
-        .landing-brand { display: flex; align-items: center; gap: 10px; }
-        .landing-mark { width: 36px; height: 36px; display: grid; place-items: center; border: 1px solid ${T.accent}55; border-radius: 11px; background: ${T.accent}18; }
-        .landing-nav-note { color: ${T.textDim}; font-size: 11px; letter-spacing: .7px; text-transform: uppercase; }
-        .landing-main { padding-top: 86px; padding-bottom: 76px; }
-        .landing-hero { display: grid; grid-template-columns: minmax(0, .92fr) minmax(420px, 1.08fr); gap: 72px; align-items: center; }
-        .landing-kicker { display: flex; align-items: center; gap: 8px; color: ${T.accent}; font-size: 11px; text-transform: uppercase; letter-spacing: 1.8px; font-weight: 700; }
-        .landing-kicker span { width: 24px; height: 1px; background: ${T.accent}; }
-        .landing-title { max-width: 590px; margin: 20px 0 22px; font-family: 'Space Grotesk', system-ui, sans-serif; font-size: clamp(44px, 6vw, 78px); line-height: .98; letter-spacing: -2px; }
-        .landing-title em { color: ${T.accent}; font-style: normal; }
-        .landing-copy { max-width: 500px; color: ${T.textDim}; font-size: 17px; line-height: 1.65; }
-        .landing-actions { display: flex; align-items: center; gap: 18px; margin-top: 32px; flex-wrap: wrap; }
-        .landing-cta { display: inline-flex; align-items: center; gap: 10px; padding: 14px 19px; border: 0; border-radius: 10px; background: ${T.accent}; color: #04211D; font-size: 14px; font-weight: 700; cursor: pointer; box-shadow: 0 12px 30px ${T.accent}20; transition: transform .2s ease, box-shadow .2s ease; }
-        .landing-cta:hover { transform: translateY(-2px); box-shadow: 0 16px 36px ${T.accent}35; }
-        .landing-privacy { display: flex; align-items: center; gap: 7px; color: ${T.textDim}; font-size: 12px; }
-        .landing-preview-wrap { position: relative; }
-        .landing-preview-wrap:before { content: ''; position: absolute; inset: 12% -8% -12% 8%; background: ${T.accent}18; filter: blur(70px); pointer-events: none; }
-        .landing-preview { position: relative; padding: 18px; border: 1px solid ${T.border}; border-radius: 20px; background: ${T.surface}eF; box-shadow: 0 30px 80px #00000045; transform: rotate(1.5deg); }
-        .preview-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: 16px; border-bottom: 1px solid ${T.borderSoft}; }
-        .preview-label { color: ${T.textFaint}; font-size: 10px; text-transform: uppercase; letter-spacing: 1px; }
-        .preview-status { display: flex; align-items: center; gap: 6px; color: ${T.safe}; font-size: 11px; }
-        .preview-status i { width: 6px; height: 6px; border-radius: 50%; background: ${T.safe}; box-shadow: 0 0 12px ${T.safe}; }
-        .preview-score { display: flex; align-items: end; justify-content: space-between; padding: 22px 4px 18px; }
-        .preview-score strong { color: ${T.safe}; font: 600 50px/1 'IBM Plex Mono', monospace; }
-        .preview-score small { display: block; color: ${T.textDim}; font-size: 12px; margin-top: 8px; }
-        .preview-spark { height: 110px; padding: 13px 0; border-top: 1px solid ${T.borderSoft}; border-bottom: 1px solid ${T.borderSoft}; }
-        .preview-spark svg { width: 100%; height: 100%; }
-        .preview-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 16px; }
-        .preview-metric { padding: 12px; border: 1px solid ${T.borderSoft}; border-radius: 10px; background: ${T.bgGrid}; }
-        .preview-metric b { display: block; margin-top: 8px; font: 600 18px 'IBM Plex Mono', monospace; }
-        .preview-metric span { color: ${T.textFaint}; font-size: 10px; }
-        .landing-pillars { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1px; margin-top: 110px; border-top: 1px solid ${T.border}; border-bottom: 1px solid ${T.border}; background: ${T.border}; }
-        .landing-pillar { min-height: 158px; padding: 25px 26px; background: ${T.bg}; }
-        .landing-pillar svg { color: ${T.accent}; }
-        .landing-pillar h3 { margin: 17px 0 8px; font: 600 16px 'Space Grotesk', sans-serif; }
-        .landing-pillar p { margin: 0; color: ${T.textDim}; font-size: 12px; line-height: 1.6; }
-        .landing-footer { display: flex; justify-content: space-between; align-items: center; padding-top: 23px; padding-bottom: 23px; color: ${T.textFaint}; font-size: 11px; }
-        .landing-footer span { display: flex; align-items: center; gap: 7px; }
-        @media (max-width: 800px) {
-          .landing-nav, .landing-main, .landing-footer { padding-left: 20px; padding-right: 20px; }
-          .landing-main { padding-top: 54px; }
-          .landing-hero { grid-template-columns: 1fr; gap: 48px; }
-          .landing-title { font-size: clamp(44px, 14vw, 68px); }
-          .landing-copy { font-size: 15px; }
-          .landing-preview { transform: none; }
-          .landing-pillars { grid-template-columns: 1fr; margin-top: 70px; }
-          .landing-pillar { min-height: auto; }
-          .landing-nav-note { display: none; }
+      } catch (error) {
+        console.warn("Contact access could not be granted automatically", error);
+      }
+    }
+
+    if (navigator.geolocation) {
+      await new Promise((resolve) => {
+        navigator.geolocation.getCurrentPosition(
+          (position) => {
+            gpsGranted = true;
+            setDeviceLocation({
+              lat: position.coords.latitude,
+              lng: position.coords.longitude,
+              label: "Current device location",
+              permission: "granted",
+              error: "",
+            });
+            resolve();
+          },
+          (error) => {
+            console.warn("GPS access denied during automatic sync", error);
+            resolve();
+          },
+          {
+            enableHighAccuracy: true,
+            timeout: 15000,
+            maximumAge: 60000,
+          }
+        );
+      });
+    }
+
+    setDeviceAccess({
+      contacts: contactsGranted || emergencyContacts.length > 0,
+      gps: gpsGranted || deviceLocation.lat !== null,
+      wearables: true,
+    });
+    setShowContactPicker(false);
+    setPhoneConnectMode("choose");
+    setStatusText(
+      contactsGranted || gpsGranted
+        ? "Automatic access granted: contacts, GPS, and offline wearable sensors are ready."
+        : "Connected device access is available when permissions are granted on the phone or browser."
+    );
+  };
+
+  const handleOpenCompanionApp = () => {
+    setStatusText("Opening phone companion app");
+
+    try {
+      window.location.href = "rakshak://pair-device";
+    } catch (error) {
+      console.warn("Companion deep link failed", error);
+    }
+
+    setDeviceAccess((prev) => ({ ...prev, wearables: true }));
+    setTimeout(() => {
+      setShowContactPicker(false);
+      setPhoneConnectMode("choose");
+      setStatusText("Connected device app opened. Contacts, GPS, and offline wearable sensors can sync automatically.");
+    }, 400);
+  };
+
+  const finishPhoneSync = () => {
+    const normalizedCode = enteredPairingCode.trim().toUpperCase();
+
+    if (phoneConnectMode === "pair" && normalizedCode && normalizedCode !== pairingCode) {
+      setStatusText("Pairing code did not match");
+      return;
+    }
+
+    const accessSummary = {
+      contacts: emergencyContacts.length > 0,
+      gps: deviceLocation.lat !== null,
+      wearables: true,
+    };
+
+    applyEmergencyContacts(demoContacts.slice(0, 4));
+    setDeviceAccess(accessSummary);
+    setShowContactPicker(false);
+    setPhoneConnectMode("choose");
+    setEnteredPairingCode("");
+    setStatusText("Phone connected successfully. Saved contacts are now available in the emergency view.");
+  };
+
+  const toggleSelectedContact = (contactId) => {
+    setSelectedContactIds((currentIds) =>
+      currentIds.includes(contactId)
+        ? currentIds.filter((id) => id !== contactId)
+        : [...currentIds, contactId]
+    );
+  };
+
+  const openMap = () => {
+    window.open(liveLocation.googleMapsUrl, "_blank", "noopener,noreferrer");
+  };
+
+  const triggerCall = (number) => {
+    const cleaned = number.replace(/\D/g, "");
+    if (cleaned) {
+      window.location.href = `tel:${cleaned}`;
+    }
+  };
+
+  const dialEmergencyContacts = () => {
+    if (!emergencyContacts.length) return;
+
+    emergencyContacts.forEach((contact, index) => {
+      const cleaned = contact.phone.replace(/\D/g, "");
+      if (!cleaned) return;
+      setTimeout(() => {
+        window.location.href = `tel:${cleaned}`;
+      }, index * 1200);
+    });
+  };
+
+  const createRiskMessage = (contactName = "contact") => {
+    const locationText = deviceLocation.lat !== null && deviceLocation.lng !== null
+      ? `Current location: https://www.google.com/maps?q=${deviceLocation.lat},${deviceLocation.lng}`
+      : "Current location: unavailable right now.";
+
+    return `Emergency alert for ${contactName}: ${profile.fullName || "This person"} is in immediate danger and needs help right now. Please contact them and emergency services urgently. ${locationText} Please respond as soon as possible.`;
+  };
+
+  const sendRiskMessageToContact = (contact) => {
+    const cleaned = contact.phone.replace(/\D/g, "");
+    if (!cleaned) return;
+    const body = encodeURIComponent(createRiskMessage(contact.name));
+    window.location.href = `sms:${cleaned}?body=${body}`;
+  };
+
+  const sendRiskMessageToAllContacts = () => {
+    if (!emergencyContacts.length) return;
+
+    emergencyContacts.forEach((contact, index) => {
+      setTimeout(() => sendRiskMessageToContact(contact), index * 250);
+    });
+  };
+
+  useEffect(() => {
+    if (!("contacts" in navigator) || !navigator.contacts?.select) {
+      applyEmergencyContacts(demoContacts.slice(0, 4));
+      setDeviceAccess((prev) => ({ ...prev, contacts: false }));
+      setStatusText("Using saved emergency contacts for the active response view.");
+      return;
+    }
+
+    connectToDeviceContacts();
+  }, []);
+
+  useEffect(() => {
+    if (navigator && navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          setDeviceLocation({
+            lat: position.coords.latitude,
+            lng: position.coords.longitude,
+            label: "Current device location",
+            permission: "granted",
+            error: "",
+          });
+          setDeviceAccess((prev) => ({ ...prev, gps: true }));
+        },
+        (error) => {
+          setDeviceLocation({
+            lat: null,
+            lng: null,
+            label: "Location unavailable",
+            permission: "denied",
+            error: error.message || "Location access was denied. Enable location access to share the live position.",
+          });
+          setDeviceAccess((prev) => ({ ...prev, gps: false }));
+        },
+        {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 60000,
+        }
+      );
+    } else {
+      setDeviceLocation({
+        lat: null,
+        lng: null,
+        label: "Location not supported",
+        permission: "unsupported",
+        error: "This browser does not support live geolocation. Use a connected mobile device with GPS access.",
+      });
+      setDeviceAccess((prev) => ({ ...prev, gps: false }));
+    }
+
+    setDeviceAccess((prev) => ({ ...prev, wearables: true }));
+  }, []);
+
+  useEffect(() => {
+    if (isDangerState) {
+      const timer = setTimeout(() => {
+        dialEmergencyContacts();
+      }, 1200);
+
+      return () => clearTimeout(timer);
+    }
+  }, [isDangerState]);
+
+  const emergencyMapUrl = `https://maps.google.com/maps?q=${liveLocation.lat ?? 19.0760},${liveLocation.lng ?? 72.8777}&z=13&output=embed`;
+
+  const handleTodayStatus = () => {
+    setSelectedDay(history.length - 1);
+    setStatusText("Today's status refreshed");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+
+  const handleAdjustGoals = () => {
+    setStatusText("Goal sync enabled");
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  };
+  const sleepAverage = useMemo(() => average("sleep"), []);
+  const recoveryAverage = useMemo(() => average("recovery"), []);
+  const focusAverage = useMemo(() => average("focus"), []);
+  const stressAverage = useMemo(() => average("stress"), []);
+
+  const score = Math.round(
+    current.recovery * 0.35 +
+      current.focus * 0.25 +
+      (100 - current.stress) * 0.2 +
+      (current.sleep / 9) * 100 * 0.2
+  );
+
+  const insight = useMemo(() => {
+    const sleepDelta = current.sleep - sleepAverage;
+    const focusDelta = current.focus - focusAverage;
+    const stressDelta = current.stress - stressAverage;
+
+    if (sleepDelta >= 0.7 && focusDelta >= 6 && stressDelta <= -8) {
+      return "Your baseline is strongest when you sleep above your weekly average and keep stress below your normal range. Today matches that pattern, so your recovery window looks healthy.";
+    }
+
+    if (sleepDelta < -0.8 || focusDelta < -8) {
+      return "You are running below your usual baseline. Recovery and focus look softer than your normal rhythm, so a lighter schedule and earlier wind-down would help.";
+    }
+
+    return "Your pattern is mostly consistent with your personal cadence. The main opportunity is to protect the recovery window before afternoon stress starts to climb.";
+  }, [current, sleepAverage, focusAverage, stressAverage]);
+
+  const actions = [
+    {
+      title: "Protect sleep",
+      detail: current.sleep < 7 ? "Aim for a 30-minute earlier bedtime and reduce evening screen time." : "Your sleep is aligned with your pattern; keep the routine stable.",
+      icon: MoonStar,
+      color: T.accent,
+    },
+    {
+      title: "Reduce stress drift",
+      detail: current.stress > 45 ? "Use a 10-minute reset before 4 PM to lower the spike." : "Stress is in a manageable band for your baseline.",
+      icon: Zap,
+      color: T.warm,
+    },
+    {
+      title: "Boost focus",
+      detail: current.focus < 75 ? "Batch deep work into your first 90 minutes after waking." : "Focus is above trend; keep this momentum in your strongest hours.",
+      icon: Brain,
+      color: T.accent2,
+    },
+    {
+      title: "Extreme weather guidance",
+      detail:
+        environment.temp > 30 || environment.airQuality > 45 || environment.uvIndex > 6
+          ? "High heat and air stress are detected. Stay hydrated, limit outdoor exposure during peak daytime heat, use cooling measures, and keep emergency contacts ready if symptoms worsen."
+          : "Current weather stress is manageable. Continue monitoring humidity and UV levels, and keep hydration and cooling resources available during the hottest part of the day.",
+      icon: ShieldCheck,
+      color: T.warm,
+    },
+    {
+      title: "Health risk response",
+      detail:
+        current.stress > 45 || current.sleep < 7 || current.recovery < 70
+          ? "Your health trend shows elevated risk. Prioritize rest, reduce exertion, monitor dizziness, chest discomfort, or confusion, and seek medical guidance early if symptoms continue."
+          : "Your health signals are stable. Maintain your routine, continue hydration, and monitor for any sudden dizziness, fatigue, or worsening symptoms.",
+      icon: HeartPulse,
+      color: T.danger,
+    },
+  ];
+
+  const scoreLabel = scoreFromMetrics(score);
+  const personalHealthScore = Math.max(0, Math.min(100, score));
+
+  const environmentScore = Math.min(100, Math.round(
+    (100 - environment.airQuality) * 0.35 +
+    (100 - environment.temp * 2.2) * 0.25 +
+    (100 - environment.humidity) * 0.2 +
+    (100 - environment.uvIndex * 8) * 0.2
+  ));
+
+  const environmentLabel = environmentScore >= 75 ? "Safe" : environmentScore >= 55 ? "Caution" : "Danger";
+  const environmentSeverity = environmentLabel === "Safe" ? "low" : environmentLabel === "Caution" ? "medium" : "high";
+
+  const anomalyScore = Math.min(100, Math.round(
+    current.stress * 0.35 +
+    (100 - current.recovery) * 0.3 +
+    (current.sleep < 7 ? (7 - current.sleep) * 18 : 0) +
+    (environment.airQuality > 55 ? (environment.airQuality - 55) * 0.9 : 0) +
+    (environment.temp > 30 ? (environment.temp - 30) * 4 : 0)
+  ));
+  const anomalyStatus = anomalyScore >= 75 ? "High anomaly risk" : anomalyScore >= 45 ? "Moderate anomaly risk" : "Stable pattern";
+
+  const weatherDangerScore = Math.min(100, Math.round(
+    environment.airQuality * 0.32 +
+    Math.max(0, environment.temp - 20) * 3.6 +
+    environment.humidity * 0.45 +
+    environment.uvIndex * 8 +
+    (current.stress > 45 ? 14 : 0)
+  ));
+  const disasterLabel = weatherDangerScore >= 80 ? "Extreme danger" : weatherDangerScore >= 60 ? "High danger" : weatherDangerScore >= 40 ? "Watch" : "Low danger";
+
+  const environmentSummary =
+    environment.airQuality > 80 || environment.temp > 32 || environment.uvIndex > 6
+      ? "Environmental conditions are elevated today. Heat exposure, air quality stress, and UV load are combining to raise risk for vulnerable users. Recommended actions: increase water intake, avoid peak outdoor heat, wear breathable clothing, keep cooling tools nearby, and limit exertion until conditions improve."
+      : "Current environmental conditions remain within a manageable range, with only mild stress signals from the outdoor environment. Keep monitoring heat and AQI during midday and maintain routine hydration and shade breaks when the outdoor environment becomes more intense.";
+
+  const tabConfig = [
+    { id: "health", label: "Health overview", icon: HeartPulse },
+    { id: "anomaly", label: "Real-time anomaly detection", icon: Activity },
+    { id: "disaster", label: "Disaster mode", icon: ShieldCheck },
+    { id: "environment", label: "Environment overview", icon: ShieldCheck },
+    { id: "overall", label: "Psychological + environment", icon: Brain },
+    { id: "emergency", label: "Emergency", icon: Activity },
+  ];
+
+  const overviewConfig = {
+    health: {
+      header: "Health overview",
+      score: personalHealthScore,
+      scoreLabel: scoreLabel === "excellent" ? "Excellent" : scoreLabel === "stable" ? "Stable" : "Watch",
+      badgeColor: scoreLabel === "excellent" ? T.good : scoreLabel === "stable" ? T.accent : T.warm,
+      metrics: [
+        { label: "Sleep", value: `${current.sleep.toFixed(1)}h`, icon: MoonStar, color: T.accent },
+        { label: "Stress", value: `${current.stress}/100`, icon: Gauge, color: T.warm },
+        { label: "Recovery", value: `${current.recovery}/100`, icon: HeartPulse, color: T.accent2 },
+        { label: "Focus", value: `${current.focus}/100`, icon: Brain, color: T.good },
+      ],
+      cards: [
+        { title: "Personal health score", detail: `Your personal health score is ${personalHealthScore}, reflecting recovery, sleep quality, stress stability, and focus consistency.`, value: `${personalHealthScore}`, suffix: "", meta: "Overall health", icon: HeartPulse, color: "rgba(78,226,199,0.14)" },
+        { title: "Sleep baseline", detail: `Compared with your 7-day rhythm, sleep is ${getTrendLabel(current.sleep, sleepAverage)} hours from baseline.`, value: `${current.sleep.toFixed(1)}`, suffix: "h", meta: `7d avg ${sleepAverage.toFixed(1)}h`, icon: MoonStar, color: "rgba(78,226,199,0.14)" },
+        { title: "Recovery", detail: `Your bodily resilience is trending ${current.recovery >= recoveryAverage ? "above" : "below"} your baseline.`, value: `${current.recovery}`, suffix: "", meta: `avg ${recoveryAverage.toFixed(0)}`, icon: HeartPulse, color: "rgba(139,124,246,0.12)" },
+      ],
+    },
+    anomaly: {
+      header: "Real-time anomaly detection",
+      score: anomalyScore,
+      scoreLabel: anomalyStatus,
+      badgeColor: anomalyScore >= 75 ? T.danger : anomalyScore >= 45 ? T.warm : T.good,
+      metrics: [
+        { label: "HR variance", value: `${Math.max(0, 100 - current.recovery)}%`, icon: Activity, color: T.danger },
+        { label: "Sleep drift", value: `${current.sleep < 7 ? (7 - current.sleep).toFixed(1) : "0.0"}h`, icon: MoonStar, color: T.accent },
+        { label: "Stress rise", value: `${current.stress}/100`, icon: Gauge, color: T.warm },
+        { label: "Weather stress", value: `${environment.airQuality} AQI`, icon: ShieldCheck, color: T.accent2 },
+      ],
+      cards: [
+        { title: "Recovery drop", detail: `Recovery has fallen ${Math.max(0, recoveryAverage - current.recovery).toFixed(0)} points from the usual trend.`, value: `${Math.max(0, recoveryAverage - current.recovery).toFixed(0)}`, suffix: "pts", meta: "Trend gap", icon: HeartPulse, color: "rgba(255,107,107,0.12)" },
+        { title: "Sleep anomaly", detail: current.sleep < 7 ? "Your sleep is below the recommended range and may be reducing your alertness and recovery." : "Sleep remains within a stable range with no clear anomaly detected.", value: `${current.sleep.toFixed(1)}`, suffix: "h", meta: "Sleep track", icon: MoonStar, color: "rgba(78,226,199,0.14)" },
+        { title: "Thermal stress", detail: environment.temp > 30 ? `Heat stress is rising at ${environment.temp}°C and may increase fatigue or dehydration risk.` : "Temperature remains comparatively safe and not currently causing thermal stress.", value: `${environment.temp}`, suffix: "°C", meta: "Heat signal", icon: ShieldCheck, color: "rgba(255,191,105,0.13)" },
+      ],
+    },
+    disaster: {
+      header: "Disaster mode",
+      score: weatherDangerScore,
+      scoreLabel: disasterLabel,
+      badgeColor: weatherDangerScore >= 80 ? T.danger : weatherDangerScore >= 60 ? T.warm : weatherDangerScore >= 40 ? T.accent : T.good,
+      metrics: [
+        { label: "Heat", value: `${environment.temp}°C`, icon: ShieldCheck, color: T.warm },
+        { label: "Air", value: `${environment.airQuality} AQI`, icon: Activity, color: T.accent },
+        { label: "Humidity", value: `${environment.humidity}%`, icon: MoonStar, color: T.accent2 },
+        { label: "UV", value: `${environment.uvIndex}/10`, icon: Sparkles, color: T.good },
+      ],
+      cards: [
+        { title: "Weather danger", detail: `The local weather trend is currently ${disasterLabel.toLowerCase()} based on heat, air quality, humidity, and UV conditions.`, value: `${weatherDangerScore}`, suffix: "", meta: "Danger score", icon: ShieldCheck, color: "rgba(255,107,107,0.12)" },
+        { title: "Heat risk", detail: environment.temp > 30 ? "Heat exposure is elevated; avoid outdoor work during peak hours and keep cooling options nearby." : "Heat remains manageable, but stay hydrated during the hottest part of the day.", value: `${environment.temp}`, suffix: "°C", meta: "Temperature", icon: Thermometer, color: "rgba(255,191,105,0.12)" },
+        { title: "Air protection", detail: environment.airQuality > 45 ? "Air stress is elevated. Mask up and reduce outdoor exertion when AQI remains high." : "Air conditions are relatively stable, but continue monitoring during the afternoon peak.", value: `${environment.airQuality}`, suffix: "AQI", meta: "Air signal", icon: Activity, color: "rgba(78,226,199,0.14)" },
+      ],
+    },
+    environment: {
+      header: "Environment overview",
+      score: environmentScore,
+      scoreLabel: environmentLabel,
+      badgeColor: environmentLabel === "Safe" ? T.good : environmentLabel === "Caution" ? T.warm : T.danger,
+      metrics: [
+        { label: "Air", value: `${environment.airQuality} AQI`, icon: Activity, color: T.accent },
+        { label: "Heat", value: `${environment.temp}°C`, icon: ShieldCheck, color: T.warm },
+        { label: "Humidity", value: `${environment.humidity}%`, icon: MoonStar, color: T.accent2 },
+        { label: "UV", value: `${environment.uvIndex}/10`, icon: Sparkles, color: T.good },
+      ],
+      cards: [
+        { title: "Air quality", detail: `Air quality is currently ${environment.airQuality} AQI with ${environment.airQuality > 45 ? "elevated risk" : "manageable conditions"}.`, value: `${environment.airQuality}`, suffix: "AQI", meta: "Current level", icon: Activity, color: "rgba(78,226,199,0.14)" },
+        { title: "Heat index", detail: `Heat stress is ${environment.temp > 30 ? "elevated" : "moderate"} at ${environment.temp}°C.`, value: `${environment.temp}`, suffix: "°C", meta: "Peak temp", icon: ShieldCheck, color: "rgba(255,191,105,0.12)" },
+        { title: "UV index", detail: `UV is ${environment.uvIndex}/10, so outdoor protection is ${environment.uvIndex > 6 ? "recommended" : "still manageable"}.`, value: `${environment.uvIndex}`, suffix: "/10", meta: "UV load", icon: Sparkles, color: "rgba(139,124,246,0.12)" },
+      ],
+    },
+    overall: {
+      header: "Psychological + environment",
+      score: environmentScore,
+      scoreLabel: environmentLabel,
+      badgeColor: environmentLabel === "Safe" ? T.good : environmentLabel === "Caution" ? T.warm : T.danger,
+      metrics: [
+        { label: "Focus", value: `${current.focus}/100`, icon: Brain, color: T.accent },
+        { label: "Mood", value: `${current.mood}/100`, icon: Sparkles, color: T.warm },
+        { label: "Stress", value: `${current.stress}/100`, icon: Gauge, color: T.accent2 },
+        { label: "Environment", value: `${environmentScore}/100`, icon: ShieldCheck, color: T.good },
+      ],
+      cards: [
+        { title: "Focus score", detail: `Your focus score is ${current.focus}, aligned with ${current.focus >= 75 ? "high productivity" : "a recovery-focused schedule"}.`, value: `${current.focus}`, suffix: "", meta: "Focus load", icon: Brain, color: "rgba(78,226,199,0.14)" },
+        { title: "Mood state", detail: `Current mood state is ${current.mood}, which is ${current.mood >= 75 ? "positive" : "stable but needs support"}.`, value: `${current.mood}`, suffix: "", meta: "Mood index", icon: Sparkles, color: "rgba(255,191,105,0.12)" },
+        { title: "Environment score", detail: `${environmentSummary}`, value: `${environmentScore}`, suffix: "", meta: "Risk status", icon: ShieldCheck, color: "rgba(139,124,246,0.12)" },
+      ],
+    },
+    emergency: {
+      header: "Emergency response",
+      score: isDangerState ? 82 : 90,
+      scoreLabel: isDangerState ? "High alert" : "Prepared",
+      badgeColor: isDangerState ? T.danger : T.good,
+      metrics: [
+        { label: "Alert", value: isDangerState ? "High" : "Low", icon: HeartPulse, color: T.danger },
+        { label: "Wait", value: isDangerState ? "Auto-call" : "Ready", icon: ShieldCheck, color: T.good },
+        { label: "Area", value: liveLocation.label, icon: Activity, color: T.accent },
+        { label: "Contacts", value: "5", icon: PhoneCall, color: T.warm },
+      ],
+      cards: [
+        { title: "Health alert", detail: current.stress > 45 || current.recovery < 70 ? "Stress or recovery risk requires immediate rest and hydration." : "Health status is stable and ready for monitoring.", value: current.stress > 45 || current.recovery < 70 ? "Risk" : "Stable", suffix: "", meta: "Current status", icon: HeartPulse, color: "rgba(255,107,107,0.12)" },
+        { title: "Environment alert", detail: environment.temp > 30 || environment.airQuality > 45 ? "Heat and air conditions are elevated and need immediate shelter." : "Environment remains manageable with normal monitoring.", value: environment.temp > 30 || environment.airQuality > 45 ? "Watch" : "Normal", suffix: "", meta: "Risk status", icon: ShieldCheck, color: "rgba(255,191,105,0.12)" },
+        { title: "Emergency contacts", detail: "Five priority contacts are automatically dialed during critical danger conditions.", value: "5", suffix: "", meta: "Dial list", icon: Activity, color: "rgba(78,226,199,0.14)" },
+      ],
+    },
+  };
+
+  const renderTabContent = () => {
+    if (activeTab === "anomaly") {
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Current anomaly signals</h2>
+              <div className="panel-copy">Real-time pattern check</div>
+            </div>
+            <div className="signal-list" style={{ padding: 0 }}>
+              {[
+                ["Sleep debt", current.sleep < 7 ? `${(7 - current.sleep).toFixed(1)}h short` : "Normal", current.sleep < 7 ? "Alert" : "Stable", "linear-gradient(90deg, #4ee2c7, #8b7cf6)"],
+                ["Recovery fall", `${Math.max(0, recoveryAverage - current.recovery).toFixed(0)} pts`, `${current.recovery < recoveryAverage ? "Detected" : "Normal"}`, "linear-gradient(90deg, #ff6b6b, #ffbf69)"],
+                ["Stress spike", `${current.stress}/100`, current.stress > 45 ? "Detected" : "Stable", "linear-gradient(90deg, #ffbf69, #ff8a5b)"],
+                ["Weather stress", `${environment.airQuality} AQI`, environment.airQuality > 45 ? "Detected" : "Normal", "linear-gradient(90deg, #6ec6ff, #8b7cf6)"],
+              ].map(([label, value, state, color], index) => (
+                <div className="signal-row" key={label} style={{ marginBottom: index < 3 ? 10 : 0 }}>
+                  <span className="signal-label">{label}</span>
+                  <div className="signal-right">
+                    <div className="progress"><span style={{ width: `${Math.min(100, label === "Stress spike" ? current.stress : label === "Weather stress" ? environment.airQuality : label === "Recovery fall" ? Math.max(0, recoveryAverage - current.recovery) * 2 : 60)}%`, background: color }} /></div>
+                    <div className="signal-score">{value}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Recommended anomaly response</h2>
+              <div className="panel-copy">Immediate guidance</div>
+            </div>
+            <div className="action-list" style={{ margin: 0 }}>
+              {[
+                { title: "Protect recovery", detail: current.recovery < 70 ? "Take a slower pace today and restore recovery before the next activity block." : "Recovery remains acceptable; keep your current rhythm steady.", icon: HeartPulse, color: T.accent },
+                { title: "Reduce cognitive load", detail: current.focus < 75 ? "Schedule deep work earlier and minimize decision fatigue during the next few hours." : "Your focus pattern is stable; keep your current rhythm.", icon: Brain, color: T.accent2 },
+                { title: "Stabilize stress", detail: current.stress > 45 ? "Use a 10-minute reset and reduce overload in the next cycle before it compounds." : "Stress is controlled and predictable.", icon: Zap, color: T.warm },
+                { title: "Cool and recover", detail: environment.temp > 30 ? "Avoid peak heat and hydrate more often to prevent thermal strain." : "Conditions are manageable; continue general hydration and caution.", icon: ShieldCheck, color: T.danger },
+              ].map(({ title, detail, icon: Icon, color }) => (
+                <div className="action-item" key={title}>
+                  <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
+                  <div>
+                    <h4>{title}</h4>
+                    <p>{detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "disaster") {
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Disaster mode overview</h2>
+              <div className="panel-copy">Danger detection</div>
+            </div>
+            <div className="alert-box" style={{ margin: 0 }}>
+              <div className="alert-header">
+                <h3>{disasterLabel}</h3>
+                <div className="alert-badge">{weatherDangerScore} / 100</div>
+              </div>
+              <div className="status-strip">
+                <div className="status-card">
+                  <div className="status-label">Heat</div>
+                  <div className="status-value">{environment.temp > 30 ? "High" : "Normal"}</div>
+                </div>
+                <div className="status-card">
+                  <div className="status-label">Air</div>
+                  <div className="status-value">{environment.airQuality > 45 ? "Poor" : "Safe"}</div>
+                </div>
+              </div>
+              <div className="sms-box">
+                {environmentSummary}
+              </div>
+            </div>
+          </div>
+
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Weather safety steps</h2>
+              <div className="panel-copy">Immediate protection</div>
+            </div>
+            <div className="action-list" style={{ margin: 0 }}>
+              {[
+                { title: "Heat shield", detail: environment.temp > 30 ? "Avoid outdoor tasks during peak heat and keep cooling measures ready." : "Stay hydrated and opportunistically cool down during the hottest hours.", icon: Thermometer, color: T.warm },
+                { title: "Air safety", detail: environment.airQuality > 45 ? "Reduce outdoor exertion, protect breathing, and keep a mask available." : "Air exposure remains manageable, but continue monitoring if the AQI rises.", icon: Activity, color: T.accent },
+                { title: "Hydration cycle", detail: "Drink water regularly and keep ORS or electrolyte support nearby in strong heat conditions.", icon: MoonStar, color: T.accent2 },
+                { title: "Emergency prep", detail: "Keep your emergency contacts ready and avoid unnecessary travel when danger levels are high.", icon: PhoneCall, color: T.danger },
+              ].map(({ title, detail, icon: Icon, color }) => (
+                <div className="action-item" key={title}>
+                  <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
+                  <div>
+                    <h4>{title}</h4>
+                    <p>{detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "environment") {
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Environmental risk data</h2>
+              <div className="panel-copy">Live monitor</div>
+            </div>
+            <div className="signal-list" style={{ padding: 0 }}>
+              {[
+                ["Air quality", environment.airQuality, `${environment.airQuality} AQI`, "linear-gradient(90deg, #4ee2c7, #8b7cf6)"],
+                ["Heat index", environment.temp, `${environment.temp}°C`, "linear-gradient(90deg, #ffbf69, #ff8a5b)"],
+                ["Humidity", environment.humidity, `${environment.humidity}%`, "linear-gradient(90deg, #6ec6ff, #8b7cf6)"],
+                ["UV index", environment.uvIndex, `${environment.uvIndex}/10`, "linear-gradient(90deg, #ffd166, #ff8a5b)"],
+              ].map(([label, value, metric, color], index) => (
+                <div className="signal-row" key={label} style={{ marginBottom: index < 3 ? 10 : 0 }}>
+                  <span className="signal-label">{label}</span>
+                  <div className="signal-right">
+                    <div className="progress"><span style={{ width: `${Math.min(typeof value === 'number' ? value * (label === 'UV index' ? 14 : label === 'Heat index' ? 4 : label === 'Humidity' ? 1 : 1) : 100, 100)}%`, background: color }} /></div>
+                    <div className="signal-score">{metric}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Environment recommendations</h2>
+              <div className="panel-copy">Action plan</div>
+            </div>
+            <div className="action-list" style={{ margin: 0 }}>
+              {[
+                { title: "Hydration", detail: "Drink water regularly and carry electrolyte support during hot periods.", icon: MoonStar, color: T.accent },
+                { title: "Reduce UV exposure", detail: "Wear a hat, sunscreen, and limit midday outdoor work when UV is elevated.", icon: ShieldCheck, color: T.warm },
+                { title: "Air quality safety", detail: "Keep masks and cleaner indoor air available on days with rising AQI.", icon: Activity, color: T.accent2 },
+                { title: "Heat stress response", detail: "Take breaks in cool spaces and avoid strenuous activity during peak heat hours.", icon: HeartPulse, color: T.danger },
+              ].map(({ title, detail, icon: Icon, color }) => (
+                <div className="action-item" key={title}>
+                  <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
+                  <div>
+                    <h4>{title}</h4>
+                    <p>{detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "overall") {
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Psychological + environmental overview</h2>
+              <div className="panel-copy">Combined view</div>
+            </div>
+            <div className="focus-check" style={{ marginTop: 0 }}>
+              <div className="check-item">
+                <div className="big" style={{ color: T.accent }}>{current.focus}</div>
+                <div className="label">Focus score</div>
+              </div>
+              <div className="check-item">
+                <div className="big" style={{ color: T.warm }}>{current.mood}</div>
+                <div className="label">Mood state</div>
+              </div>
+              <div className="check-item">
+                <div className="big" style={{ color: T.accent2 }}>{current.stress}</div>
+                <div className="label">Stress load</div>
+              </div>
+              <div className="check-item">
+                <div className="big" style={{ color: T.good }}>{environmentScore}</div>
+                <div className="label">Environment score</div>
+              </div>
+            </div>
+            <div className="insight-box" style={{ margin: "18px 0 0" }}>
+              <div className="tag">Integrated summary</div>
+              <p>{insight} {environmentSummary}</p>
+            </div>
+          </div>
+
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Overall protective measures</h2>
+              <div className="panel-copy">Self-care plan</div>
+            </div>
+            <div className="action-list" style={{ margin: 0 }}>
+              {[
+                { title: "Pause and recover", detail: "Rest early and reduce screen time if stress climbs above your usual baseline.", icon: MoonStar, color: T.accent },
+                { title: "Reset your mental load", detail: "Use a 10-minute breathing reset and reduce over-stimulation before 4 PM.", icon: Brain, color: T.accent2 },
+                { title: "Protect against heat", detail: "Hydrate, cool down, and avoid altitude or peak sun exposure during unsafe conditions.", icon: ShieldCheck, color: T.warm },
+                { title: "Emergency readiness", detail: "Keep emergency contacts ready and monitor your body for dizziness or sudden worsening symptoms.", icon: HeartPulse, color: T.danger },
+              ].map(({ title, detail, icon: Icon, color }) => (
+                <div className="action-item" key={title}>
+                  <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
+                  <div>
+                    <h4>{title}</h4>
+                    <p>{detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "emergency") {
+      return (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Emergency response</h2>
+              <div className="panel-copy">Live guidance</div>
+            </div>
+
+            <div className="alert-box" style={{ margin: 0 }}>
+              <div className="alert-header">
+                <h3>{isDangerState ? "High risk alert" : "Prepared response"}</h3>
+                <div className="alert-badge">{isDangerState ? "Monitor" : "Ready"}</div>
+              </div>
+
+              <div className="status-strip">
+                <div className="status-card">
+                  <div className="status-label">Health</div>
+                  <div className="status-value">{current.recovery < 70 ? "Elevated" : "Stable"}</div>
+                </div>
+                <div className="status-card">
+                  <div className="status-label">Environment</div>
+                  <div className="status-value">{environment.temp > 30 || environment.airQuality > 45 ? "Unsafe" : "Safe"}</div>
+                </div>
+              </div>
+
+              <div className="status-strip" style={{ marginTop: 12 }}>
+                <div className="status-card">
+                  <div className="status-label">Contacts</div>
+                  <div className="status-value" style={{ color: deviceAccess.contacts ? T.good : T.warm }}>{deviceAccess.contacts ? "Synced" : "Waiting"}</div>
+                </div>
+                <div className="status-card">
+                  <div className="status-label">GPS</div>
+                  <div className="status-value" style={{ color: deviceAccess.gps ? T.good : T.warm }}>{deviceAccess.gps ? "Live" : "Waiting"}</div>
+                </div>
+                <div className="status-card">
+                  <div className="status-label">Wearables</div>
+                  <div className="status-value" style={{ color: deviceAccess.wearables ? T.good : T.warm }}>{deviceAccess.wearables ? "Offline Ready" : "Unavailable"}</div>
+                </div>
+              </div>
+
+              <div className="map-card">
+                <iframe
+                  title="Emergency location map"
+                  className="map-frame"
+                  src={emergencyMapUrl}
+                  loading="lazy"
+                  allowFullScreen
+                />
+                <div className="map-marker" />
+                <div className="map-badge"><ShieldCheck size={10} /> {liveLocation.label}</div>
+              </div>
+
+              <div className="alert-actions">
+                <button className="action-primary" onClick={dialEmergencyContacts} disabled={!emergencyContacts.length}>Call contacts</button>
+                <button className="action-secondary" onClick={sendRiskMessageToAllContacts} disabled={!emergencyContacts.length}>Message all</button>
+                <button className="action-secondary" onClick={openMap}>Safe zone</button>
+              </div>
+
+              <div className="sms-box" style={{ marginTop: 12 }}>
+                {deviceLocation.permission === "granted"
+                  ? `Live location access is enabled. Current coordinates: ${deviceLocation.lat?.toFixed(4)}, ${deviceLocation.lng?.toFixed(4)}`
+                  : deviceLocation.error || "Location access is required to send the live location in the emergency message."}
+              </div>
+
+              <div className="alert-contact-list">
+                {emergencyContacts.length ? (
+                  emergencyContacts.map((contact) => (
+                    <div className="contact-row" key={`${contact.name}-${contact.phone}`}>
+                      <div className="contact-meta">
+                        <div className="contact-name">{contact.name}</div>
+                        <div className="contact-number">{contact.phone}</div>
+                      </div>
+                      <div style={{ display: "flex", gap: 8 }}>
+                        <button className="call-btn" onClick={() => triggerCall(contact.phone)}>Call</button>
+                        <button className="call-btn" style={{ background: "linear-gradient(135deg, #8b7cf6, #a7a0ff)", color: "#fff" }} onClick={() => sendRiskMessageToContact(contact)}>Message</button>
+                      </div>
+                    </div>
+                  ))
+                ) : (
+                  <div className="sms-box">
+                    No device contacts are available yet. Use “Connect to device” to select trusted contacts from the connected phone.
+                  </div>
+                )}
+              </div>
+
+              <div className="sms-box">
+                {isDangerState
+                  ? "Important: the system is automatically contacting priority contacts because the environment or mental health risk is high. Take immediate rest, hydrate, and seek safe shelter if symptoms worsen."
+                  : "Your current risk is manageable. Keep hydration and cooling routines ready, and remain alert to sudden spikes in stress, heat, or air conditions."}
+              </div>
+            </div>
+          </div>
+
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Emergency plan</h2>
+              <div className="panel-copy">Quick actions</div>
+            </div>
+            <div className="action-list" style={{ margin: 0 }}>
+              {[
+                { title: "Move to cool indoor space", detail: "If heat or air stress rises, relocate to a cooler indoor environment and keep fluids ready.", icon: ShieldCheck, color: T.warm },
+                { title: "Contact support", detail: "Notify your emergency contact and use your saved access number for direct contact.", icon: HeartPulse, color: T.accent },
+                { title: "Monitor warning signs", detail: "Look for dizziness, chest pain, confusion, fainting, or sudden worsening of fatigue.", icon: Activity, color: T.danger },
+                { title: "Keep a safe response ready", detail: "Store your location, emergency numbers, and travel route in case you need fast action.", icon: Sparkles, color: T.accent2 },
+              ].map(({ title, detail, icon: Icon, color }) => (
+                <div className="action-item" key={title}>
+                  <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
+                  <div>
+                    <h4>{title}</h4>
+                    <p>{detail}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
+        <div className="panel" style={{ padding: 18 }}>
+          <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+            <h2>Heart rate analysis</h2>
+            <div className="panel-copy">Risk inspection</div>
+          </div>
+          <div className="signal-list" style={{ padding: 0 }}>
+            {[
+              ["Heart rate", current.sleep > 7 ? 78 : 62, `${current.sleep > 7 ? 78 : 62} bpm`, "linear-gradient(90deg, #4ee2c7, #7ee4d0)"],
+              ["Recovery", current.recovery, `${current.recovery}/100`, "linear-gradient(90deg, #8b7cf6, #b8aef9)"],
+              ["Stress", current.stress, `${current.stress}/100`, "linear-gradient(90deg, #ffbf69, #ffd08a)"],
+              ["Focus", current.focus, `${current.focus}/100`, "linear-gradient(90deg, #4ee2c7, #8b7cf6)"],
+            ].map(([label, value, metric, color], index) => (
+              <div className="signal-row" key={label} style={{ marginBottom: index < 3 ? 10 : 0 }}>
+                <span className="signal-label">{label}</span>
+                <div className="signal-right">
+                  <div className="progress"><span style={{ width: `${Math.min(value, 100)}%`, background: color }} /></div>
+                  <div className="signal-score">{metric}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="panel" style={{ padding: 18 }}>
+          <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+            <h2>Health risk recommendations</h2>
+            <div className="panel-copy">Measure + guidance</div>
+          </div>
+          <div className="action-list" style={{ margin: 0 }}>
+            {[
+              { title: "Protect sleep", detail: current.sleep < 7 ? "Increase sleep by 30 minutes and reduce late-night screens." : "Keep your current sleep rhythm stable to maintain recovery.", icon: MoonStar, color: T.accent },
+              { title: "Reduce stress drift", detail: current.stress > 45 ? "Use a 10-minute reset before 4 PM to keep stress from spiking." : "Stress remains manageable; continue current recovery practices.", icon: Zap, color: T.warm },
+              { title: "Boost focus", detail: current.focus < 75 ? "Schedule deep work in the first 90 minutes after waking." : "Your focus is above baseline; keep your strongest routine intact.", icon: Brain, color: T.accent2 },
+              { title: "Health risk response", detail: current.stress > 45 || current.sleep < 7 || current.recovery < 70 ? "Prioritize rest, hydration, and cautious activity if symptoms worsen." : "You are within a safe trend; keep monitoring for sudden changes.", icon: HeartPulse, color: T.danger },
+            ].map(({ title, detail, icon: Icon, color }) => (
+              <div className="action-item" key={title}>
+                <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
+                <div>
+                  <h4>{title}</h4>
+                  <p>{detail}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
+      <style>{`
+        * { box-sizing: border-box; }
+        body { margin: 0; background: ${T.bg}; }
+        button, select { font: inherit; }
+        .page { max-width: 1200px; width: 100%; margin: 0 auto; padding: 28px 22px 48px; display: flex; flex-direction: column; align-items: center; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; width: 100%; }
+        .tab-bar { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 24px; justify-content: center; align-items: center; width: 100%; }
+        .tab-btn { border: 1px solid ${T.border}; background: ${T.surface}; color: ${T.textDim}; border-radius: 12px; padding: 10px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
+        .tab-btn.active { background: rgba(78, 226, 199, 0.12); color: ${T.text}; border-color: rgba(78, 226, 199, 0.35); }
+        .brand { display: flex; align-items: center; gap: 12px; }
+        .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: rgba(78, 226, 199, 0.14); border: 1px solid rgba(78, 226, 199, 0.4); display:flex; align-items:center; justify-content:center; }
+        .brand-name { font-size: 24px; font-weight: 700; letter-spacing: -0.04em; }
+        .status-pill { border: 1px solid ${T.border}; background: ${T.surface}; border-radius: 999px; padding: 8px 12px; color: ${T.textDim}; font-size: 12px; display: inline-flex; align-items:center; gap:8px; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: ${T.good}; box-shadow: 0 0 12px ${T.good}; }
+        .hero { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 18px; }
+        .panel { background: linear-gradient(180deg, rgba(16,45,59,0.96), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 22px; box-shadow: 0 18px 40px ${T.shadow}; }
+        .hero-panel { padding: 26px; }
+        .eyebrow { display:inline-flex; align-items:center; gap:8px; padding: 8px 12px; border-radius: 999px; background: rgba(139,124,246,0.08); border: 1px solid rgba(139,124,246,0.25); font-size: 11px; letter-spacing: 0.15em; text-transform: uppercase; color: #d6ccff; }
+        h1 { margin: 18px 0 12px; font-size: clamp(2.5rem, 5vw, 4.2rem); line-height: 0.96; letter-spacing: -0.07em; }
+        .gradient-text { background: linear-gradient(135deg, #e6f9f6 0%, #62d9c8 30%, #b7ccff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .subtext { color: ${T.textDim}; font-size: 16px; line-height: 1.6; max-width: 640px; }
+        .cta-row { display:flex; gap: 12px; margin-top: 18px; flex-wrap: wrap; }
+        .primary-btn, .secondary-btn { border-radius: 12px; padding: 12px 18px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
+        .primary-btn { background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; }
+        .secondary-btn { background: transparent; border-color: ${T.border}; color: ${T.text}; }
+        .score-panel { padding: 24px; display: flex; flex-direction: column; justify-content: space-between; }
+        .score-label { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; color: ${T.textMuted}; }
+        .score-row { display: flex; align-items: baseline; gap: 8px; margin-top: 12px; }
+        .score-value { font-size: 62px; line-height: 1; letter-spacing: -0.09em; font-weight: 700; }
+        .score-badge { font-size: 12px; padding: 5px 9px; border-radius: 999px; border: 1px solid; }
+        .mini-grid { display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 20px; }
+        .mini-card { padding: 12px 14px; background: ${T.panelAlt}; border: 1px solid ${T.borderSoft}; border-radius: 14px; }
+        .metric-head { display:flex; justify-content:space-between; align-items:center; color: ${T.textDim}; font-size: 11px; text-transform: uppercase; letter-spacing: 0.1em; }
+        .metric-value { margin-top: 8px; font-size: 24px; font-weight: 700; }
+        .metric-value small { font-size: 12px; color: ${T.textDim}; margin-left: 4px; }
+        .card-grid { margin-top: 20px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+        .summary-card { padding: 18px 18px 16px; }
+        .summary-icon-wrap { width: 38px; height: 38px; border-radius: 12px; display:flex; align-items:center; justify-content:center; margin-bottom: 16px; }
+        .summary-card h3 { margin: 0 0 8px; font-size: 14px; }
+        .summary-card p { margin: 0; color: ${T.textDim}; font-size: 12.5px; line-height:1.6; }
+        .summary-value { display:flex; justify-content:space-between; align-items:flex-end; margin-top: 12px; }
+        .summary-value strong { font-size: 28px; letter-spacing:-0.06em; }
+        .summary-value span { color: ${T.textMuted}; font-size: 12px; }
+        .risk-meter { position: relative; height: 12px; border-radius: 999px; overflow: hidden; background: rgba(255,255,255,0.06); border: 1px solid ${T.borderSoft}; margin-top: 12px; }
+        .risk-fill { position: absolute; inset: 0 auto 0 0; border-radius: inherit; }
+        .main-grid { margin-top: 20px; display:grid; grid-template-columns: 1.35fr 0.95fr; gap: 18px; }
+        .panel-header { display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 18px 18px 0; }
+        .panel-header h2 { margin: 0; font-size: 18px; }
+        .panel-copy { color: ${T.textDim}; font-size: 12px; }
+        .day-switcher { display:flex; gap: 8px; flex-wrap: wrap; padding: 0 18px 18px; margin-top: 18px; }
+        .day-pill { border-radius: 10px; padding: 8px 10px; border: 1px solid ${T.border}; background: ${T.surface}; color: ${T.textDim}; cursor: pointer; }
+        .day-pill.active { background: rgba(78, 226, 199, 0.12); border-color: rgba(78, 226, 199, 0.35); color: ${T.text}; }
+        .chart-wrap { padding: 0 18px 18px; height: 260px; }
+        .insight-box { margin: 18px; padding: 16px; border-radius: 16px; background: rgba(139,124,246,0.08); border: 1px solid rgba(139,124,246,0.25); }
+        .insight-box .tag { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; color: #d6ccff; }
+        .insight-box p { margin: 10px 0 0; font-size: 14px; line-height: 1.7; color: ${T.text}; }
+        .action-list { margin: 18px; display:flex; flex-direction:column; gap: 12px; }
+        .action-item { display:flex; gap: 12px; padding: 12px; background: ${T.panelAlt}; border-radius: 14px; border: 1px solid ${T.borderSoft}; }
+        .action-icon { width: 38px; height: 38px; border-radius: 12px; display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+        .action-item h4 { margin: 0 0 5px; font-size: 14px; }
+        .action-item p { margin: 0; color: ${T.textDim}; font-size: 12px; line-height:1.55; }
+        .bottom-grid { margin-top: 20px; display:grid; grid-template-columns: 1fr 1fr; gap: 18px; }
+        .signal-list { padding: 0 18px 18px; display:flex; flex-direction:column; gap: 12px; }
+        .signal-row { display:flex; align-items:center; justify-content:space-between; gap: 16px; }
+        .signal-label { font-size: 13px; color: ${T.textDim}; }
+        .signal-right { display:flex; align-items:center; gap: 12px; }
+        .progress { width: 150px; height: 8px; background: rgba(255,255,255,0.06); border-radius: 999px; overflow:hidden; border: 1px solid ${T.borderSoft}; }
+        .progress > span { display:block; height:100%; border-radius: inherit; }
+        .signal-score { font-size: 12px; color: ${T.text}; font-weight:600; }
+        .focus-card { padding: 18px; }
+        .focus-check { display:grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 18px; }
+        .check-item { background: ${T.panelAlt}; border: 1px solid ${T.borderSoft}; border-radius: 14px; padding: 14px; }
+        .check-item .big { font-size: 26px; font-weight: 700; letter-spacing:-0.06em; }
+        .check-item .label { color: ${T.textDim}; font-size: 12px; margin-top: 8px; }
+        .alert-box { margin: 18px; padding: 16px; border-radius: 16px; border: 1px solid rgba(255, 107, 107, 0.4); background: rgba(255, 107, 107, 0.08); animation: pulse 1.3s infinite; }
+        @keyframes pulse {
+          0%, 100% { box-shadow: 0 0 0 rgba(255,107,107,0.15); }
+          50% { box-shadow: 0 0 24px rgba(255,107,107,0.35); }
+        }
+        .alert-header { display:flex; justify-content:space-between; align-items:center; gap:12px; }
+        .alert-header h3 { margin: 0; font-size: 18px; }
+        .alert-badge { padding: 6px 10px; border-radius: 999px; background: rgba(255,107,107,0.12); border: 1px solid rgba(255,107,107,0.32); color: #ffb4b4; font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; }
+        .status-strip { margin-top: 14px; display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+        .status-card { padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid ${T.borderSoft}; }
+        .status-label { font-size: 11px; letter-spacing: 0.12em; text-transform: uppercase; color: ${T.textMuted}; }
+        .status-value { margin-top: 6px; font-size: 18px; font-weight: 700; letter-spacing: -0.04em; }
+        .map-card { margin-top: 14px; border-radius: 14px; height: 150px; position: relative; overflow: hidden; border: 1px solid ${T.borderSoft}; background: linear-gradient(135deg, rgba(78,226,199,0.12), rgba(46,91,121,0.1)); }
+        .map-card::before { content: ""; position:absolute; inset: 0; background:
+          linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+          linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+          background-size: 18px 18px, 18px 18px; }
+        .map-frame { position:absolute; inset:0; width:100%; height:100%; border:0; filter: grayscale(0.2) saturate(1.1) contrast(1.05); }
+        .map-marker { position:absolute; width: 14px; height:14px; background: ${T.danger}; border-radius:50%; border: 3px solid rgba(255,255,255,0.9); box-shadow: 0 0 0 6px rgba(255,107,107,0.22); left: 62%; top: 42%; z-index:2; }
+        .map-badge { position:absolute; right: 10px; bottom: 10px; z-index: 2; display:inline-flex; align-items:center; gap: 6px; border-radius:999px; padding: 6px 10px; background: rgba(7, 27, 42, 0.73); border: 1px solid rgba(255,255,255,0.12); font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; color: ${T.text}; }
+        .alert-actions { display:flex; gap:10px; margin-top: 14px; }
+        .action-primary, .action-secondary { flex:1; border:none; border-radius: 10px; padding: 10px 12px; font-weight:700; cursor:pointer; }
+        .action-primary { background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; }
+        .action-secondary { background: rgba(255,255,255,0.04); border: 1px solid ${T.borderSoft}; color: ${T.text}; }
+        .alert-contact-list { margin-top: 14px; display:flex; flex-direction:column; gap: 10px; }
+        .contact-row { display:flex; align-items:center; justify-content:space-between; gap:12px; padding: 10px 12px; border-radius: 12px; background: rgba(255,255,255,0.03); border: 1px solid ${T.borderSoft}; }
+        .contact-meta { display:flex; flex-direction:column; }
+        .contact-name { font-size: 13px; font-weight: 600; }
+        .contact-number { font-size: 12px; color: ${T.textDim}; }
+        .call-btn { border: none; border-radius: 10px; background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; padding: 8px 10px; font-weight: 700; cursor: pointer; }
+        .sms-box { margin-top: 14px; padding: 10px 12px; border-radius: 12px; background: rgba(78,226,199,0.08); border: 1px solid rgba(78,226,199,0.24); color: ${T.textDim}; font-size: 12px; line-height:1.6; }
+        .recent-dials { margin-top: 14px; display:flex; flex-direction:column; gap: 8px; }
+        .dial-item { display:flex; justify-content:space-between; align-items:center; padding: 9px 10px; border-radius: 10px; background: rgba(255,255,255,0.02); border: 1px solid ${T.borderSoft}; }
+        .dial-item small { color: ${T.textDim}; }
+        @media (max-width: 900px) {
+          .hero, .main-grid, .bottom-grid, .card-grid { grid-template-columns: 1fr; }
+          .topbar { flex-direction: column; align-items: flex-start; }
+          .score-value { font-size: 52px; }
         }
       `}</style>
 
-      <nav className="landing-nav">
-        <div className="landing-brand">
-          <div className="landing-mark"><ShieldCheck size={19} color={T.accent} /></div>
-          <span className="disp" style={{ fontSize: 23, fontWeight: 700 }}>Rakshak</span>
-        </div>
-        <span className="landing-nav-note">Your health, held close</span>
-      </nav>
+      <div className="page">
+        {showContactPicker && (
+          <div style={{ position: "fixed", inset: 0, background: "rgba(3, 12, 18, 0.76)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 40 }}>
+            <div className="panel" style={{ width: "min(560px, 100%)", padding: 22 }}>
+              <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+                <h2 style={{ margin: 0 }}>Connect your phone</h2>
+                <div className="panel-copy">Sync your personal contacts securely</div>
+              </div>
 
-      <main className="landing-main">
-        <section className="landing-hero">
-          <div>
-            <div className="landing-kicker"><span /> On-device health guardian</div>
-            <h1 className="landing-title">Know earlier.<br /><em>Stay ready.</em></h1>
-            <p className="landing-copy">Rakshak quietly watches the signals that matter, combining your body’s baseline with the world around you. Private by default. Ready when conditions change.</p>
-            <div className="landing-actions">
-              <button className="landing-cta" onClick={onEnter}>Open your health view <ArrowRight size={17} /></button>
-              <span className="landing-privacy"><Lock size={14} color={T.accent2} /> Nothing leaves this device</span>
+              {phoneConnectMode === "choose" && (
+                <>
+                  <div style={{ marginTop: 12, padding: 14, borderRadius: 12, border: `1px solid ${T.borderSoft}`, background: "rgba(78,226,199,0.06)", color: T.textDim, fontSize: 13, lineHeight: 1.6 }}>
+                    Enable automatic access to the connected phone for contacts, live GPS, and offline wearable sensors.
+                  </div>
+
+                  <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
+                    <button className="primary-btn" onClick={requestConnectedDeviceAccess}>Grant automatic device access</button>
+                    <button className="secondary-btn" onClick={handleOpenCompanionApp}>Open companion app</button>
+                    <button className="secondary-btn" onClick={() => setPhoneConnectMode("pair")}>Enter pairing code</button>
+                  </div>
+
+                  <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "rgba(255,255,255,0.03)", border: `1px solid ${T.borderSoft}`, color: T.textDim, lineHeight: 1.6 }}>
+                    Real contacts, GPS, and wearable sensor data are pulled from the connected device only. This keeps access truly device-based instead of using demo data.
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+                    <button className="secondary-btn" onClick={() => setShowContactPicker(false)}>Cancel</button>
+                    <button className="primary-btn" onClick={handleContactPickerSubmit}>Use connected device</button>
+                  </div>
+                </>
+              )}
+
+              {phoneConnectMode === "pair" && (
+                <div style={{ display: "grid", gap: 16, marginTop: 14 }}>
+                  <div style={{ padding: 12, borderRadius: 12, background: "rgba(139,124,246,0.08)", border: `1px solid rgba(139,124,246,0.25)`, color: T.textDim, textAlign: "center" }}>
+                    Pairing code: <strong style={{ color: T.text, letterSpacing: 1.5 }}>{pairingCode}</strong>
+                  </div>
+                  <label style={{ display: "flex", flexDirection: "column", gap: 8, color: T.textMuted, letterSpacing: "0.12em", textTransform: "uppercase", fontSize: 11 }}>
+                    Enter pairing code
+                    <input
+                      value={enteredPairingCode}
+                      onChange={(e) => setEnteredPairingCode(e.target.value)}
+                      placeholder="RAK-4821"
+                      style={{ width: "100%", borderRadius: 12, border: `1px solid ${T.border}`, background: "rgba(6,18,26,0.8)", color: T.text, padding: "12px 14px", fontSize: 14 }}
+                    />
+                  </label>
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+                    <button className="secondary-btn" onClick={() => setPhoneConnectMode("choose")}>Back</button>
+                    <button className="primary-btn" onClick={finishPhoneSync}>Confirm pairing</button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
-          <div className="landing-preview-wrap" aria-label="Preview of the Rakshak health monitor">
-            <div className="landing-preview">
-              <div className="preview-top"><span className="preview-label">Rakshak / live overview</span><span className="preview-status"><i /> Monitoring</span></div>
-              <div className="preview-score"><div><strong>12</strong><small>Composite risk · Normal</small></div><ShieldCheck size={36} color={T.safe} strokeWidth={1.5} /></div>
-              <div className="preview-spark"><svg viewBox="0 0 600 100" preserveAspectRatio="none" fill="none"><path d="M0 53 C25 48 35 60 54 52 S91 40 109 53 S146 68 167 50 S207 35 228 51 S263 65 284 49 S322 41 343 53 S379 68 400 49 S436 33 458 50 S492 63 514 49 S560 41 600 52" stroke={T.accent} strokeWidth="3" /><path d="M0 53 C25 48 35 60 54 52 S91 40 109 53 S146 68 167 50 S207 35 228 51 S263 65 284 49 S322 41 343 53 S379 68 400 49 S436 33 458 50 S492 63 514 49 S560 41 600 52 V100 H0Z" fill={`${T.accent}12`} stroke="none" /></svg></div>
-              <div className="preview-metrics"><div className="preview-metric"><span>Heart rate</span><b>74 <small>bpm</small></b></div><div className="preview-metric"><span>SpO₂</span><b>97 <small>%</small></b></div><div className="preview-metric"><span>Air quality</span><b style={{ color: T.safe }}>54</b></div></div>
+        )}
+
+        <header className="topbar">
+          <div className="brand">
+            <div className="brand-mark"><ShieldCheck size={18} color={T.accent} /></div>
+            <div className="brand-name">Rakshak</div>
+          </div>
+          <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
+            <div className="status-pill"><span className="dot" /> {statusText}</div>
+            <button className="secondary-btn" onClick={onLogout}>Logout</button>
+          </div>
+        </header>
+
+        <div className="tab-bar">
+          {tabConfig.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <button
+                key={tab.id}
+                className={`tab-btn ${activeTab === tab.id ? "active" : ""}`}
+                onClick={() => setActiveTab(tab.id)}
+              >
+                <Icon size={16} />
+                {tab.label}
+              </button>
+            );
+          })}
+        </div>
+
+        <section className="hero">
+          <div className="panel hero-panel">
+            <div className="eyebrow"><Sparkles size={12} /> {overviewConfig[activeTab].header}</div>
+            <h1>
+              {activeTab === "health" && <>Your personal health score is <span className="gradient-text">strong and stable</span></>}
+              {activeTab === "anomaly" && <>Real-time health alerts are <span className="gradient-text">tracking your drift</span></>}
+              {activeTab === "disaster" && <>Weather danger is <span className="gradient-text">being detected live</span></>}
+              {activeTab === "environment" && <>Your environment is <span className="gradient-text">under watch</span></>}
+              {activeTab === "overall" && <>Your mental and environmental balance is <span className="gradient-text">being monitored</span></>}
+            </h1>
+            <div className="subtext">
+              {activeTab === "health" && "Track your personal rhythm across sleep, recovery, focus, and stress — then let AI surface the small changes that matter before they become setbacks."}
+              {activeTab === "anomaly" && "Monitor sudden recovery drops, sleep drift, stress spikes, and heat-related anomalies before they turn into a health event."}
+              {activeTab === "disaster" && "This mode reads the current weather conditions and highlights the danger level so you can act early during heat, air-quality, or UV-heavy conditions."}
+              {activeTab === "environment" && "Monitor air quality, heat, humidity, and UV levels to protect your body and daily routine when outdoor conditions worsen."}
+              {activeTab === "overall" && "Review your focus, mood, stress, and environment together to understand how your psychological state and conditions work as one system."}
+            </div>
+            <div className="cta-row">
+              <button className="primary-btn" onClick={handleTodayStatus}>View today</button>
+              <button className="secondary-btn" onClick={handleAdjustGoals}>Adjust goals</button>
+            </div>
+          </div>
+
+          <div className="panel score-panel">
+            <div>
+              <div className="score-label">
+                {activeTab === "health" ? "Personal health score" : activeTab === "anomaly" ? "Anomaly risk" : activeTab === "disaster" ? "Weather danger" : activeTab === "environment" ? "Environment score" : "Integrated score"}
+              </div>
+              <div className="score-row">
+                <div className="score-value">{overviewConfig[activeTab].score}</div>
+                <div className="score-badge" style={{ borderColor: overviewConfig[activeTab].badgeColor === T.good ? "rgba(96,227,154,.5)" : overviewConfig[activeTab].badgeColor === T.accent ? "rgba(78,226,199,.4)" : "rgba(255,191,105,.38)", color: overviewConfig[activeTab].badgeColor }}>
+                  {overviewConfig[activeTab].scoreLabel}
+                </div>
+              </div>
+            </div>
+
+            <div className="mini-grid">
+              {overviewConfig[activeTab].metrics.map((metric) => {
+                const Icon = metric.icon;
+                return (
+                  <div className="mini-card" key={metric.label}>
+                    <div className="metric-head">
+                      <span>{metric.label}</span>
+                      <Icon size={12} color={metric.color} />
+                    </div>
+                    <div className="metric-value">{metric.value}</div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         </section>
 
-        <section className="landing-pillars">
-          <div className="landing-pillar"><Lock size={18} /><h3>Private by design</h3><p>Your vitals are processed locally. Sharing is always optional, explicit, and anonymised.</p></div>
-          <div className="landing-pillar"><Activity size={18} /><h3>Patterns, not panic</h3><p>Personal baselines help surface meaningful drift before a single reading becomes a worry.</p></div>
-          <div className="landing-pillar"><Smartphone size={18} /><h3>Ready offline</h3><p>Core scoring and cached guidance keep working when the network cannot.</p></div>
+        <section className="card-grid">
+          {overviewConfig[activeTab].cards.map((card) => (
+            <div className="panel summary-card" key={card.title}>
+              <div className="summary-icon-wrap" style={{ background: card.color }}>
+                <card.icon size={18} color={card.title.includes("Environment") ? T.good : card.title.includes("Mood") ? T.warm : T.accent2} />
+              </div>
+              <h3>{card.title}</h3>
+              <p>{card.detail}</p>
+              <div className="summary-value">
+                <strong>{card.value}</strong>
+                <span>{card.meta}</span>
+              </div>
+            </div>
+          ))}
         </section>
-      </main>
 
-      <footer className="landing-footer"><span><Check size={13} color={T.safe} /> Built for calm, informed decisions</span><span>Prototype · Synthetic data</span></footer>
-    </div>
-  );
-}
-
-function Section({ title, icon, note, right, children }) {
-  return (
-    <div className="rk-card" style={{ background: T.surface, border: `1px solid ${T.border}`, borderRadius: 16, padding: 18 }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14, flexWrap: "wrap", gap: 8 }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          {icon}
-          <span className="disp" style={{ fontSize: 14.5, fontWeight: 600 }}>{title}</span>
-          {note && <span style={{ fontSize: 11, color: T.textFaint }}>· {note}</span>}
-        </div>
-        {right}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-function VitalCard({ rule, value, level }) {
-  const color = LEVEL_COLOR[level];
-  const Icon = rule.Icon;
-  return (
-    <div style={{ borderRadius: 12, border: `1px solid ${color}33`, background: T.surface2, padding: "12px 12px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <Icon size={14} color={color} />
-        <span style={{ fontSize: 9.5, color, textTransform: "uppercase", letterSpacing: 0.4, fontWeight: 600 }}>{LEVEL_LABEL[level]}</span>
-      </div>
-      <div className="mono" style={{ fontSize: 20, fontWeight: 600, marginTop: 8 }}>{value.toFixed(0)}<span style={{ fontSize: 11, color: T.textFaint, marginLeft: 3 }}>{rule.unit}</span></div>
-      <div style={{ fontSize: 10.5, color: T.textFaint, marginTop: 2 }}>{rule.label}</div>
-    </div>
-  );
-}
-
-function HazardCard({ meta, value, level }) {
-  const color = LEVEL_COLOR[level];
-  const Icon = meta.Icon;
-  return (
-    <div style={{ borderRadius: 12, border: `1px solid ${color}33`, background: T.surface2, padding: "12px 13px" }}>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-          <Icon size={14} color={color} />
-          <span style={{ fontSize: 12, fontWeight: 600 }}>{meta.label}</span>
-        </div>
-        <span style={{ fontSize: 9.5, color, fontWeight: 600, textTransform: "uppercase", letterSpacing: 0.3 }}>{LEVEL_LABEL[level]}</span>
-      </div>
-      <div style={{ height: 5, borderRadius: 4, background: T.bgGrid, marginTop: 9, overflow: "hidden" }}>
-        <div style={{ width: `${value}%`, height: "100%", background: color, transition: "width .4s ease" }} />
-      </div>
-      <div style={{ fontSize: 11.5, color: T.textDim, marginTop: 8, lineHeight: 1.4 }}>{meta.tip(level)}</div>
-    </div>
-  );
-}
-
-function RegionPicker({ region, setRegion }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, background: T.bgGrid, border: `1px solid ${T.borderSoft}`, borderRadius: 9, padding: "5px 9px" }}>
-      <MapPin size={12} color={T.textFaint} />
-      <select
-        value={region}
-        onChange={(e) => setRegion(e.target.value)}
-        style={{ background: "transparent", border: "none", color: T.text, fontSize: 11.5, outline: "none" }}
-      >
-        {Object.keys(REGIONS).map((r) => <option key={r} value={r} style={{ background: T.surface }}>{r}</option>)}
-      </select>
-    </div>
-  );
-}
-
-function LegendDot({ color, label }) {
-  return (
-    <span style={{ display: "flex", alignItems: "center", gap: 5 }}>
-      <span style={{ width: 8, height: 8, borderRadius: 99, background: color }} />
-      {label}
-    </span>
-  );
-}
-
-function PrivacyRow({ title, desc, locked }) {
-  return (
-    <div style={{ display: "flex", gap: 10, padding: "10px 0", borderBottom: `1px solid ${T.borderSoft}` }}>
-      <Lock size={14} color={T.accent2} style={{ marginTop: 2, flexShrink: 0 }} />
-      <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text }}>{title}</div>
-        <div style={{ fontSize: 11.5, color: T.textDim, marginTop: 2, lineHeight: 1.5 }}>{desc}</div>
+        <section style={{ marginTop: 20, width: "100%", display: "flex", justifyContent: "center" }}>{renderTabContent()}</section>
       </div>
     </div>
-  );
-}
-
-function ToggleRow({ title, desc, value, onChange, icon }) {
-  return (
-    <div style={{ display: "flex", gap: 10, padding: "12px 0", alignItems: "flex-start" }}>
-      <button
-        onClick={() => onChange(!value)}
-        style={{
-          width: 34, height: 20, borderRadius: 99, flexShrink: 0, marginTop: 2, cursor: "pointer",
-          border: `1px solid ${value ? T.accent : T.borderSoft}`, background: value ? `${T.accent}33` : T.bgGrid,
-          position: "relative", transition: "all .2s ease",
-        }}
-      >
-        <span style={{
-          position: "absolute", top: 1, left: value ? 15 : 1, width: 16, height: 16, borderRadius: 99,
-          background: value ? T.accent : T.textFaint, transition: "left .2s ease",
-        }} />
-      </button>
-      <div>
-        <div style={{ fontSize: 12.5, fontWeight: 600, color: T.text, display: "flex", alignItems: "center", gap: 6 }}>{title} {icon}</div>
-        <div style={{ fontSize: 11.5, color: T.textDim, marginTop: 2, lineHeight: 1.5 }}>{desc}</div>
-      </div>
-    </div>
-  );
-}
-
-function ArchPoint({ text }) {
-  return (
-    <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
-      <Info size={13} color={T.textFaint} style={{ marginTop: 3, flexShrink: 0 }} />
-      <span>{text}</span>
-    </div>
-  );
-}
-
-function PulseWave({ color }) {
-  return (
-    <svg width="600" height="84" viewBox="0 0 600 84" fill="none">
-      <path
-        d="M0 42 H60 L75 42 L85 15 L100 68 L112 42 L130 42 L142 30 L152 42 H210
-           L225 42 L235 15 L250 68 L262 42 L280 42 L292 30 L302 42 H360
-           L375 42 L385 15 L400 68 L412 42 L430 42 L442 30 L452 42 H510
-           L525 42 L535 15 L550 68 L562 42 L580 42 L592 30 L600 42"
-        stroke={color}
-        strokeWidth="2"
-        strokeLinejoin="round"
-        strokeLinecap="round"
-        opacity="0.9"
-      />
-    </svg>
   );
 }
