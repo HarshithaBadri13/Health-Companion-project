@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Area,
   AreaChart,
@@ -28,21 +28,21 @@ import {
 } from "lucide-react";
 
 const T = {
-  bg: "#05070D",
-  surface: "#0A111C",
-  panel: "rgba(15, 23, 35, 0.9)",
-  panelAlt: "rgba(10, 17, 28, 0.9)",
-  border: "rgba(0, 217, 255, 0.18)",
-  borderSoft: "rgba(0, 245, 212, 0.12)",
-  text: "#F3FBFF",
-  textDim: "#CFEAFB",
-  textMuted: "#8CAEC9",
-  accent: "#00D9FF",
-  accent2: "#00F5D4",
-  warm: "#8AE8FF",
-  good: "#3AE5B7",
-  danger: "#FF5C7A",
-  shadow: "rgba(0, 217, 255, 0.12)",
+  bg: "#071b2a",
+  surface: "#0d2231",
+  panel: "#102d3b",
+  panelAlt: "#142f3f",
+  border: "#1d3f52",
+  borderSoft: "#183548",
+  text: "#eaf7f8",
+  textDim: "#9bb6bf",
+  textMuted: "#698796",
+  accent: "#4ee2c7",
+  accent2: "#8b7cf6",
+  warm: "#ffbf69",
+  good: "#60e39a",
+  danger: "#ff6b6b",
+  shadow: "rgba(10, 20, 26, 0.45)",
 };
 
 const history = [
@@ -55,14 +55,60 @@ const history = [
   { day: "Sun", sleep: 7.6, recovery: 80, focus: 83, stress: 33, mood: 84 },
 ];
 
-const demoContacts = [
-  { id: "maya", name: "Maya Patel", phone: "+91 98765 43210" },
-  { id: "arjun", name: "Arjun Shah", phone: "+91 90000 11122" },
-  { id: "leah", name: "Leah Brown", phone: "+1 415 555 0180" },
-  { id: "samir", name: "Samir Khan", phone: "+91 98200 55011" },
-];
+const getLocationWeatherProfile = (city = "", state = "", latitude = null, longitude = null) => {
+  const key = `${city} ${state}`.toLowerCase();
+
+  if (/(delhi|gurugram|noida|jaipur|ahmedabad|lucknow|kanpur|nagpur|bhopal|patna)/i.test(key)) {
+    return { temp: 36, humidity: 72, airQuality: 72, floodRisk: 24, extremeHeat: 80, pollution: 62, uvIndex: 9, rainfall: 28, regionLabel: "North / Central heat zone", riskBias: "heat" };
+  }
+
+  if (/(mumbai|kolkata|chennai|visakhapatnam|guwahati|kochi|goa|coastal|pune|hyderabad|bengaluru|bangalore)/i.test(key)) {
+    return { temp: 33, humidity: 80, airQuality: 58, floodRisk: 66, extremeHeat: 58, pollution: 45, uvIndex: 8, rainfall: 72, regionLabel: "Coastal / monsoon zone", riskBias: "flood" };
+  }
+
+  if (/(shimla|manali|mussoorie|nainital|darjeeling|leh|srinagar|kashmir|hill|mountain)/i.test(key)) {
+    return { temp: 24, humidity: 60, airQuality: 42, floodRisk: 32, extremeHeat: 28, pollution: 30, uvIndex: 6, rainfall: 40, regionLabel: "Hilly / cooler region", riskBias: "stable" };
+  }
+
+  if (latitude != null && longitude != null && latitude > 20 && latitude < 30 && longitude > 68 && longitude < 80) {
+    return { temp: 35, humidity: 70, airQuality: 68, floodRisk: 22, extremeHeat: 78, pollution: 58, uvIndex: 9, rainfall: 32, regionLabel: "Detected inland heat zone", riskBias: "heat" };
+  }
+
+  if (latitude != null && longitude != null && longitude > 72 && latitude < 20) {
+    return { temp: 32, humidity: 84, airQuality: 55, floodRisk: 72, extremeHeat: 54, pollution: 40, uvIndex: 7, rainfall: 78, regionLabel: "Detected coastal / monsoon zone", riskBias: "flood" };
+  }
+
+  return { temp: 31, humidity: 68, airQuality: 42, floodRisk: 18, extremeHeat: 62, pollution: 34, uvIndex: 7, rainfall: 42, regionLabel: "Mixed urban zone", riskBias: "balanced" };
+};
 
 const average = (key) => history.reduce((sum, item) => sum + item[key], 0) / history.length;
+
+const normalizePhoneNumber = (value = "") => String(value).replace(/\D/g, "");
+
+const sanitizeEmergencyContact = (contact = {}) => {
+  const name = String(contact.name || "Emergency contact").trim();
+  const phone = normalizePhoneNumber(contact.phone || "");
+
+  return {
+    name: name || "Emergency contact",
+    phone,
+  };
+};
+
+const getRecentCallHistoryApi = () => {
+  const candidates = [
+    navigator.callHistory,
+    navigator.getCallHistory,
+    navigator.callLog,
+    navigator.telephony?.getCallLog,
+    navigator.telephony?.getCalls,
+  ];
+
+  return candidates.find(Boolean);
+};
+
+const recentCallPermissionMessage =
+  "Rakshak needs access to your recent calls to identify your most recently contacted people for emergency assistance.";
 
 function scoreFromMetrics(metric) {
   if (metric >= 85) return "excellent";
@@ -76,41 +122,6 @@ function getTrendLabel(value, baseline) {
   if (delta > 0) return `+${delta.toFixed(1)}`;
   if (delta < 0) return `${delta.toFixed(1)}`;
   return "0.0";
-}
-
-function getWeatherConditionLabel(code) {
-  const map = {
-    0: "Clear sky",
-    1: "Mostly clear",
-    2: "Partly cloudy",
-    3: "Cloudy",
-    45: "Foggy",
-    48: "Dense fog",
-    51: "Light drizzle",
-    53: "Drizzle",
-    55: "Heavy drizzle",
-    56: "Freezing drizzle",
-    57: "Heavy freezing drizzle",
-    61: "Light rain",
-    63: "Rain",
-    65: "Heavy rain",
-    66: "Freezing rain",
-    67: "Heavy freezing rain",
-    71: "Light snow",
-    73: "Snow",
-    75: "Heavy snow",
-    77: "Snow grains",
-    80: "Rain showers",
-    81: "Heavy showers",
-    82: "Violent showers",
-    85: "Snow showers",
-    86: "Heavy snow showers",
-    95: "Thunderstorm",
-    96: "Thunderstorm with hail",
-    99: "Severe thunderstorm",
-  };
-
-  return map[code] || "Variable conditions";
 }
 
 const defaultProfile = {
@@ -129,35 +140,17 @@ const defaultProfile = {
   agree: false,
 };
 
-function LogoMark({ size = 18, color = "#4ee2c7" }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 64 64"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      aria-label="Rakshak logo"
-    >
-      <defs>
-        <linearGradient id="rakshak-logo-gradient" x1="10" y1="8" x2="52" y2="56" gradientUnits="userSpaceOnUse">
-          <stop stopColor={color} />
-          <stop offset="1" stopColor="#8b7cf6" />
-        </linearGradient>
-      </defs>
-      <path d="M32 6L50 12V28C50 39.4 42.1 48.6 32 55C21.9 48.6 14 39.4 14 28V12L32 6Z" fill="url(#rakshak-logo-gradient)" opacity="0.18" />
-      <path d="M32 6L50 12V28C50 39.4 42.1 48.6 32 55C21.9 48.6 14 39.4 14 28V12L32 6Z" stroke="url(#rakshak-logo-gradient)" strokeWidth="3.2" />
-      <path d="M23 31C24.6 26.6 28 23 32 23C36.2 23 39.7 26.4 41.2 31.1L42.5 34.8C43.9 39.6 40.9 44.8 35.9 46.2L34.3 46.6C29.1 47.8 23.7 44.5 22.2 39.5L21.2 35.6C20.8 34.1 21.1 32.4 22.2 31.3L23 31Z" fill="url(#rakshak-logo-gradient)" opacity="0.9" />
-      <path d="M32 18V29M26 23L32 29L38 23" stroke="#EAF7F8" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  );
-}
-
 export default function App() {
-  const [screen, setScreen] = useState("splash");
+  const [screen, setScreen] = useState("landing");
   const [authMode, setAuthMode] = useState("login");
   const [profile, setProfile] = useState(defaultProfile);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [showSplash, setShowSplash] = useState(true);
+
+  useEffect(() => {
+    const splashTimer = setTimeout(() => setShowSplash(false), 3000);
+    return () => clearTimeout(splashTimer);
+  }, []);
 
   const updateProfile = (key, value) => {
     setProfile((prev) => ({ ...prev, [key]: value }));
@@ -182,8 +175,8 @@ export default function App() {
     goToDashboard();
   };
 
-  if (screen === "splash") {
-    return <SplashScreen onStart={() => setScreen("landing")} onLogin={() => { setAuthMode("login"); setScreen("auth"); }} />;
+  if (showSplash) {
+    return <SplashScreen />;
   }
 
   if (screen === "landing") {
@@ -206,158 +199,69 @@ export default function App() {
   return <Dashboard profile={profile} onLogout={() => { setIsAuthenticated(false); setScreen("landing"); }} />;
 }
 
-function SplashScreen({ onStart, onLogin }) {
+function SplashScreen() {
   return (
-    <div style={{
-      minHeight: "100vh",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      padding: 24,
-      background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.18), transparent 30%), linear-gradient(180deg, #05070D 0%, #0A111C 62%, #05070D 100%)",
-      color: T.text,
-      fontFamily: "'Poppins', 'Segoe UI', sans-serif",
-      position: "relative",
-      overflow: "hidden",
-    }}>
-      <div style={{
-        position: "absolute",
-        inset: 0,
-        background: "radial-gradient(circle at 20% 20%, rgba(0, 217, 255, 0.12), transparent 30%), radial-gradient(circle at 80% 18%, rgba(0, 245, 212, 0.08), transparent 24%), linear-gradient(90deg, rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.02) 0, rgba(255,255,255,0.02) 1px, transparent 1px)",
-        backgroundSize: "100% 100%, 100% 100%, 22px 22px, 22px 22px",
-      }} />
-
-      <div style={{
-        position: "relative",
-        zIndex: 1,
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        gap: 18,
-        textAlign: "center",
-      }}>
-        <div style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 12,
-        }}>
-          <div style={{
-            width: 136,
-            height: 136,
-            borderRadius: 36,
-            background: "rgba(10, 17, 28, 0.72)",
-            border: "1px solid rgba(0, 217, 255, 0.32)",
-            boxShadow: "0 0 0 1px rgba(0, 217, 255, 0.08), 0 15px 50px rgba(0, 217, 255, 0.12)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            backdropFilter: "blur(8px)",
-          }}>
-            <LogoMark size={86} color={T.accent} />
-          </div>
-
-          <span style={{ fontSize: 22, fontWeight: 700, letterSpacing: "0.18em", color: T.text, textTransform: "uppercase" }}>Rakshak</span>
-        </div>
-
-        <img
-          src="https://images.unsplash.com/photo-1576091160550-2173dba999ef?auto=format&fit=crop&w=1000&q=80"
-          alt="Health companion concept image"
-          style={{
-            width: "min(420px, 76vw)",
-            height: "auto",
-            display: "block",
-            borderRadius: 24,
-            border: "1px solid rgba(0, 217, 255, 0.22)",
-            boxShadow: "0 0 30px rgba(0, 217, 255, 0.12)",
-            objectFit: "cover",
-          }}
-        />
-
-        <button
-          onClick={onStart}
-          style={{
-            border: "1px solid rgba(0, 217, 255, 0.4)",
-            borderRadius: 999,
-            background: "linear-gradient(135deg, rgba(0, 217, 255, 0.95), rgba(0, 245, 212, 0.9))",
-            color: "#04151B",
-            padding: "18px 34px",
-            fontSize: 17,
-            fontWeight: 700,
-            cursor: "pointer",
-            boxShadow: "0 0 18px rgba(0, 217, 255, 0.28)",
-            minWidth: 220,
-            transition: "all 0.2s ease",
-          }}
-        >
-          Get started
-        </button>
-      </div>
-
+    <div style={{ minHeight: "100vh", display: "grid", placeItems: "center", background: "radial-gradient(circle at top, rgba(78,226,199,0.18), transparent 32%), #071b2a", color: T.text, fontFamily: "Inter, system-ui, sans-serif", overflow: "hidden" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
-
-        * { box-sizing: border-box; }
-        body { margin: 0; background: ${T.bg}; font-family: 'Poppins', 'Segoe UI', sans-serif; }
-        a { color: inherit; text-decoration: none; }
+        .splash-shell { display: flex; flex-direction: column; align-items: center; gap: 18px; position: relative; z-index: 1; }
+        .splash-logo { width: 118px; height: 118px; border-radius: 30px; border: 1px solid rgba(78,226,199,0.5); background: linear-gradient(135deg, rgba(78,226,199,0.2), rgba(139,124,246,0.18)); box-shadow: 0 0 42px rgba(78,226,199,0.18), inset 0 0 24px rgba(255,255,255,0.04); display: grid; place-items: center; position: relative; animation: splashPulse 1.8s ease-in-out infinite; }
+        .splash-logo::before { content: ""; position: absolute; inset: -16px; border-radius: 38px; border: 1px solid rgba(78,226,199,0.25); animation: ringPulse 1.8s ease-out infinite; }
+        .splash-wordmark { font-size: clamp(2.2rem, 4vw, 3.5rem); font-weight: 800; letter-spacing: -0.08em; }
+        .splash-tag { color: ${T.textDim}; letter-spacing: 0.18em; font-size: 11px; text-transform: uppercase; }
+        .splash-loader { width: 190px; height: 4px; border-radius: 999px; background: rgba(255,255,255,0.08); overflow: hidden; position: relative; }
+        .splash-loader::before { content: ""; position: absolute; inset: 0; width: 38%; border-radius: inherit; background: linear-gradient(90deg, ${T.accent}, #8ae4d0, ${T.accent2}); animation: loadingSlide 1.3s ease-in-out infinite; }
+        @keyframes splashPulse { 0%, 100% { transform: scale(1) rotate(0deg); } 50% { transform: scale(1.08) rotate(2deg); } }
+        @keyframes ringPulse { 0% { opacity: 0.8; transform: scale(0.92); } 100% { opacity: 0; transform: scale(1.12); } }
+        @keyframes loadingSlide { 0% { transform: translateX(-120%); } 100% { transform: translateX(280%); } }
       `}</style>
+      <div className="splash-shell">
+        <div className="splash-logo"><ShieldCheck size={48} color={T.accent} /></div>
+        <div className="splash-wordmark">Rakshak</div>
+        <div className="splash-tag">Health Companion</div>
+        <div className="splash-loader" />
+      </div>
     </div>
   );
 }
 
 function LandingPage({ onStart, onLogin }) {
   return (
-    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.12), transparent 22%), linear-gradient(180deg, #05070D 0%, #0A111C 55%, #05070D 100%)", color: T.text, fontFamily: "'Poppins', 'Segoe UI', sans-serif" }}>
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
-
         * { box-sizing: border-box; }
-        html { font-size: 16px; }
-        body { margin: 0; background: ${T.bg}; font-family: 'Poppins', 'Segoe UI', sans-serif; }
+        body { margin: 0; background: ${T.bg}; }
         a { color: inherit; text-decoration: none; }
         .landing-shell { max-width: 1220px; margin: 0 auto; padding: 32px 22px 56px; }
-        .landing-shell::before {
-          content: "";
-          position: fixed;
-          inset: 0;
-          background-image: url('https://images.unsplash.com/photo-1516549655169-df83a0774514?auto=format&fit=crop&w=1600&q=80');
-          background-size: cover;
-          background-position: center;
-          opacity: 0.08;
-          pointer-events: none;
-        }
         .nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 32px; }
         .brand { display: flex; align-items: center; gap: 12px; }
-        .brand-mark { width: 40px; height: 40px; border-radius: 14px; background: linear-gradient(135deg, rgba(22,181,166,0.12), rgba(79,110,247,0.12)); border: 1px solid rgba(22,181,166,0.25); display: flex; align-items: center; justify-content: center; box-shadow: inset 0 1px 0 rgba(255,255,255,0.7); }
+        .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: rgba(78, 226, 199, 0.14); border: 1px solid rgba(78, 226, 199, 0.4); display: flex; align-items: center; justify-content: center; }
         .nav-actions { display: flex; gap: 12px; align-items: center; }
         .ghost-btn, .primary-btn { border-radius: 12px; padding: 12px 18px; font-weight: 600; cursor: pointer; border: 1px solid transparent; }
-        .ghost-btn { background: rgba(15, 23, 35, 0.8); border-color: ${T.border}; color: ${T.text}; }
-        .primary-btn { background: linear-gradient(135deg, ${T.accent}, #74d8c7); color: #0a2f3c; box-shadow: 0 10px 20px rgba(22,181,166,0.18); }
+        .ghost-btn { background: transparent; border-color: ${T.border}; color: ${T.text}; }
+        .primary-btn { background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; }
         .hero { display: grid; grid-template-columns: 1.15fr 0.85fr; gap: 24px; align-items: center; }
-        .hero-panel { padding: 34px; border-radius: 28px; border: 1px solid ${T.border}; background: linear-gradient(135deg, rgba(12, 22, 32, 0.96), rgba(8, 18, 27, 0.96)); box-shadow: 0 24px 60px rgba(0, 0, 0, 0.28); position: relative; overflow: hidden; }
-        .hero-panel::before { content: ""; position: absolute; inset: -30% 30% auto auto; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(0, 217, 255, 0.15), transparent 68%); }
-        .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: ${T.accent2}; letter-spacing: 0.14em; text-transform: uppercase; padding: 8px 12px; border-radius: 999px; background: rgba(79,110,247,0.08); border: 1px solid rgba(79,110,247,0.18); }
+        .hero-panel { padding: 34px; border-radius: 28px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(17,42,54,0.98), rgba(9,25,35,0.98)); box-shadow: 0 22px 60px rgba(0,0,0,0.30); position: relative; overflow: hidden; }
+        .hero-panel::before { content: ""; position: absolute; inset: -30% 30% auto auto; width: 260px; height: 260px; border-radius: 50%; background: radial-gradient(circle, rgba(78,226,199,0.22), transparent 68%); }
+        .eyebrow { display: inline-flex; align-items: center; gap: 8px; font-size: 11px; color: #d6ccff; letter-spacing: 0.14em; text-transform: uppercase; padding: 8px 12px; border-radius: 999px; background: rgba(139,124,246,0.08); border: 1px solid rgba(139,124,246,0.25); }
         h1 { margin: 18px 0 16px; font-size: clamp(2.8rem, 6vw, 5rem); line-height: 0.96; letter-spacing: -0.08em; }
-        .gradient-text { background: linear-gradient(135deg, #dffeff 0%, #62d9c8 35%, #b7ccff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
+        .gradient-text { background: linear-gradient(135deg, #effcf6 0%, #61dcc5 35%, #b7d0ff 100%); -webkit-background-clip: text; background-clip: text; color: transparent; }
         .landing-copy { max-width: 620px; color: ${T.textDim}; font-size: 17px; line-height: 1.7; }
         .cta-group { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
         .mini-stats { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 14px; margin-top: 26px; }
-        .mini-stat { padding: 14px 16px; border: 1px solid ${T.border}; background: rgba(12, 22, 32, 0.9); border-radius: 16px; }
+        .mini-stat { padding: 14px 16px; border: 1px solid ${T.border}; background: rgba(255,255,255,0.02); border-radius: 16px; }
         .mini-stat .num { font-size: 26px; font-weight: 700; letter-spacing: -0.06em; }
         .mini-stat .label { color: ${T.textDim}; font-size: 12px; }
-        .feature-panel { padding: 24px; border-radius: 28px; border: 1px solid ${T.border}; background: rgba(11, 20, 29, 0.84); }
-        .feature-card { padding: 18px; border-radius: 18px; border: 1px solid ${T.borderSoft}; background: rgba(255,255,255,0.02); margin-bottom: 14px; }
+        .feature-panel { padding: 24px; border-radius: 28px; border: 1px solid ${T.border}; background: rgba(15,36,49,0.9); }
+        .feature-card { padding: 18px; border-radius: 18px; border: 1px solid ${T.borderSoft}; background: ${T.panelAlt}; margin-bottom: 14px; }
         .feature-card:last-child { margin-bottom: 0; }
         .feature-card h3 { font-size: 18px; margin: 12px 0 8px; }
         .feature-card p { margin: 0; color: ${T.textDim}; line-height: 1.6; font-size: 14px; }
         .feature-row { display: flex; align-items: center; gap: 10px; }
-        .visual-card { padding: 18px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(14, 24, 34, 0.96), rgba(7, 16, 25, 0.96)); box-shadow: 0 24px 50px rgba(0, 0, 0, 0.20); }
+        .visual-card { padding: 18px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(11,27,37,0.9), rgba(15,35,48,0.9)); box-shadow: 0 24px 50px rgba(0,0,0,0.25); }
         .visual-top { display:flex; justify-content:space-between; align-items:center; margin-bottom: 18px; }
         .visual-pill { display:inline-flex; align-items:center; gap:8px; padding: 7px 10px; border-radius: 999px; background: rgba(78,226,199,0.09); border: 1px solid rgba(78,226,199,0.25); color: ${T.accent}; font-size: 12px; }
         .mini-visual-grid { display:grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-        .mini-panel { background: rgba(255,255,255,0.03); border: 1px solid ${T.borderSoft}; border-radius: 16px; padding: 12px; }
+        .mini-panel { background: rgba(255,255,255,0.02); border: 1px solid ${T.borderSoft}; border-radius: 16px; padding: 12px; }
         .mini-panel h4 { margin: 0 0 10px; font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: ${T.textMuted}; }
         .mini-panel .big { font-size: 28px; font-weight: 700; letter-spacing: -0.06em; }
         .mini-panel .sub { color: ${T.textDim}; font-size: 12px; margin-top: 6px; }
@@ -365,10 +269,10 @@ function LandingPage({ onStart, onLogin }) {
         .visual-chart::before { content: ""; position:absolute; inset: 12% 8% 16% 8%; background: linear-gradient(180deg, rgba(78,226,199,0), rgba(78,226,199,0.5)); clip-path: polygon(0% 100%, 16% 64%, 30% 70%, 44% 50%, 56% 58%, 74% 26%, 100% 18%, 100% 100%); }
         .visual-chart::after { content: ""; position:absolute; inset: 0; background: linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.06) 20%, transparent 40%, rgba(255,255,255,0.06) 60%, transparent 80%); }
         .benefits { margin-top: 28px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
-        .benefit { padding: 24px 18px; border-radius: 20px; border: 1px solid ${T.border}; background: rgba(12, 22, 32, 0.9); }
+        .benefit { padding: 24px 18px; border-radius: 20px; border: 1px solid ${T.border}; background: rgba(13,34,49,0.8); }
         .benefit h4 { margin: 12px 0 8px; font-size: 20px; }
         .benefit p { margin: 0; color: ${T.textDim}; font-size: 14px; line-height: 1.6; }
-        .journey { margin-top: 30px; padding: 28px 24px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(12, 22, 32, 0.98), rgba(8, 16, 25, 0.96)); }
+        .journey { margin-top: 30px; padding: 28px 24px; border-radius: 24px; border: 1px solid ${T.border}; background: linear-gradient(180deg, rgba(13,34,49,0.8), rgba(9,25,35,0.92)); }
         .journey-header { display:flex; align-items:center; justify-content:space-between; gap:12px; margin-bottom: 18px; }
         .journey-header h3 { margin:0; font-size: clamp(1.5rem, 2vw, 2.1rem); letter-spacing:-0.05em; }
         .journey-grid { display:grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap:14px; }
@@ -385,12 +289,12 @@ function LandingPage({ onStart, onLogin }) {
       <div className="landing-shell">
         <nav className="nav">
           <div className="brand">
-            <div className="brand-mark"><LogoMark size={18} color={T.accent} /></div>
+            <div className="brand-mark"><ShieldCheck size={18} color={T.accent} /></div>
             <div style={{ fontSize: 24, fontWeight: 700, letterSpacing: "-0.04em" }}>Rakshak</div>
           </div>
           <div className="nav-actions">
             <button className="ghost-btn" onClick={onLogin}>Login</button>
-            <button className="primary-btn" onClick={onStart}>Get started</button>
+            <button className="primary-btn" onClick={onStart}>Let's Start</button>
           </div>
         </nav>
 
@@ -402,7 +306,7 @@ function LandingPage({ onStart, onLogin }) {
               Personal Health Companion uses on-device AI to continuously monitor physiological and environmental signals, detect anomalies in real time, and issue early warnings for extreme weather, health risks, and dangerous changes in your condition — all without sending your data to the cloud.
             </div>
             <div className="cta-group">
-              <button className="primary-btn" onClick={onStart}>Create account <ArrowRight size={16} /></button>
+              <button className="primary-btn" onClick={onStart}>Let's Start <ArrowRight size={16} /></button>
               <button className="ghost-btn" onClick={onLogin}>Already have an account</button>
             </div>
             <div className="mini-stats">
@@ -508,24 +412,14 @@ function LandingPage({ onStart, onLogin }) {
 
 function AuthPage({ authMode, setAuthMode, profile, updateProfile, onSubmit, onBack }) {
   return (
-    <div style={{ minHeight: "100vh", background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.14), transparent 26%), linear-gradient(180deg, #05070D 0%, #0A111C 56%, #05070D 100%)", color: T.text, fontFamily: "'Poppins', 'Segoe UI', sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
+    <div style={{ minHeight: "100vh", background: T.bg, color: T.text, fontFamily: "Inter, system-ui, sans-serif", display: "flex", alignItems: "center", justifyContent: "center", padding: 20 }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
-
         * { box-sizing: border-box; }
-        html { font-size: 16px; }
-        body {
-          margin: 0;
-          font-family: 'Poppins', 'Segoe UI', sans-serif;
-          -webkit-font-smoothing: antialiased;
-          text-rendering: optimizeLegibility;
-        }
-        h1, h2, h3, h4, h5, h6, strong, b { letter-spacing: -0.04em; }
-        button, input, select, textarea { letter-spacing: 0.01em; }
-        .auth-box { width: min(980px, 100%); background: linear-gradient(180deg, rgba(16,45,59,0.98), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 30px; box-shadow: 0 28px 70px rgba(0,0,0,0.30); overflow: hidden; }
-        .auth-top { padding: 22px 28px; border-bottom: 1px solid ${T.border}; display:flex; justify-content:space-between; align-items:center; background: rgba(255,255,255,0.02); }
-        .switch { display:flex; gap: 8px; background: ${T.surface}; padding: 6px; border-radius: 14px; border: 1px solid ${T.border}; }
-        .toggle { border: none; background: transparent; color: ${T.textDim}; padding: 10px 16px; border-radius: 11px; cursor: pointer; font-weight: 700; }
+        body { margin: 0; }
+        .auth-box { width: min(980px, 100%); background: linear-gradient(180deg, rgba(16,45,59,0.98), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 28px; box-shadow: 0 28px 60px rgba(0,0,0,0.3); overflow: hidden; }
+        .auth-top { padding: 20px 28px; border-bottom: 1px solid ${T.border}; display:flex; justify-content:space-between; align-items:center; }
+        .switch { display:flex; gap: 8px; background: ${T.surface}; padding: 6px; border-radius: 12px; border: 1px solid ${T.border}; }
+        .toggle { border: none; background: transparent; color: ${T.textDim}; padding: 8px 14px; border-radius: 10px; cursor: pointer; font-weight: 600; }
         .toggle.active { background: rgba(78,226,199,0.12); color: ${T.text}; border: 1px solid rgba(78,226,199,0.35); }
         .auth-grid { display: grid; grid-template-columns: 0.9fr 1.1fr; }
         .info-panel { padding: 28px; background: linear-gradient(180deg, rgba(78,226,199,0.08), rgba(139,124,246,0.04)); border-right: 1px solid ${T.border}; }
@@ -533,20 +427,24 @@ function AuthPage({ authMode, setAuthMode, profile, updateProfile, onSubmit, onB
         .info-panel p { margin: 0; line-height: 1.7; color: ${T.textDim}; }
         .info-list { margin-top: 22px; display:grid; gap: 12px; }
         .list-item { display:flex; align-items:flex-start; gap: 10px; padding: 12px 14px; background: rgba(255,255,255,0.02); border: 1px solid ${T.border}; border-radius: 14px; color: ${T.textDim}; }
-        .form-panel { padding: 28px; background: rgba(255,255,255,0.01); }
+        .form-panel { padding: 28px; }
         .form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
-        label { display: flex; flex-direction: column; gap: 8px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.12em; color: ${T.textMuted}; }
-        input, select, textarea { width: 100%; border-radius: 14px; border: 1px solid ${T.border}; background: rgba(6,18,26,0.8); color: ${T.text}; padding: 12px 14px; font-size: 14px; outline: none; }
-        input:focus, select:focus, textarea:focus { border-color: rgba(78,226,199,0.45); box-shadow: 0 0 0 3px rgba(78,226,199,0.08); }
+        label { display: flex; flex-direction: column; gap: 8px; font-size: 12px; text-transform: uppercase; letter-spacing: 0.12em; color: ${T.textMuted}; }
+        input, select, textarea { width: 100%; border-radius: 12px; border: 1px solid ${T.border}; background: rgba(6,18,26,0.8); color: ${T.text}; padding: 12px 14px; font-size: 14px; }
         input::placeholder, textarea::placeholder { color: ${T.textMuted}; }
         .span-2 { grid-column: span 2; }
         .checkbox-row { display:flex; align-items:flex-start; gap: 10px; color: ${T.textDim}; font-size: 13px; margin-top: 8px; }
         .checkbox-row input { width: 18px; height: 18px; accent-color: ${T.accent}; }
-        .submit-btn { margin-top: 18px; width: 100%; padding: 15px 18px; border: none; border-radius: 14px; background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; font-weight: 800; cursor: pointer; box-shadow: 0 14px 30px rgba(78,226,199,0.20); }
+        .submit-btn { margin-top: 18px; width: 100%; padding: 14px 18px; border: none; border-radius: 12px; background: linear-gradient(135deg, ${T.accent}, #7ee4d0); color: #062b2a; font-weight: 800; cursor: pointer; }
         @media (max-width: 760px) {
           .auth-grid { grid-template-columns: 1fr; }
           .form-grid { grid-template-columns: 1fr; }
           .span-2 { grid-column: span 1; }
+          .auth-box { border-radius: 20px; }
+          .auth-top { padding: 18px 18px; }
+          .info-panel, .form-panel { padding: 20px; }
+          .switch { width: 100%; }
+          .toggle { flex: 1; }
         }
       `}</style>
 
@@ -697,29 +595,19 @@ function Dashboard({ profile, onLogout }) {
     permission: "prompt",
     error: "",
   });
-  const [emergencyContacts, setEmergencyContacts] = useState(demoContacts.slice(0, 4));
+  const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [showContactPicker, setShowContactPicker] = useState(false);
-  const [selectedContactIds, setSelectedContactIds] = useState(demoContacts.map((contact) => contact.id));
   const [phoneConnectMode, setPhoneConnectMode] = useState("choose");
-  const [enteredPairingCode, setEnteredPairingCode] = useState("");
+  const [recentCallCandidates, setRecentCallCandidates] = useState([]);
+  const [manualContactName, setManualContactName] = useState("");
+  const [manualContactPhone, setManualContactPhone] = useState("");
+  const [manualLocationCity, setManualLocationCity] = useState("");
+  const [manualLocationState, setManualLocationState] = useState("");
   const [deviceAccess, setDeviceAccess] = useState({
     contacts: false,
     gps: false,
     wearables: false,
   });
-  const [liveWeather, setLiveWeather] = useState({
-    temp: 31,
-    humidity: 68,
-    uvIndex: 7,
-    airQuality: 42,
-    precipitation: 0,
-    windSpeed: 12,
-    weatherCode: 0,
-    summary: "Checking live weather...",
-    alert: "Live weather is being updated.",
-    isLoading: true,
-  });
-  const audioContextRef = useRef(null);
 
   const pairingCode = "RAK-4821";
 
@@ -738,132 +626,162 @@ function Dashboard({ profile, onLogout }) {
         googleMapsUrl: "https://www.google.com/maps",
       };
 
-  const environment = {
-    airQuality: liveWeather.airQuality,
-    temp: liveWeather.temp,
-    humidity: liveWeather.humidity,
-    uvIndex: liveWeather.uvIndex,
-    pollen: 58,
-    precipitation: liveWeather.precipitation,
-    windSpeed: liveWeather.windSpeed,
-    weatherCode: liveWeather.weatherCode,
-    summary: liveWeather.summary,
-    alert: liveWeather.alert,
-  };
+  const environment = useMemo(() => {
+    const profile = getLocationWeatherProfile(manualLocationCity, manualLocationState, deviceLocation.lat, deviceLocation.lng);
+    const gpsBoost = deviceLocation.permission === "granted" ? 2 : 0;
+    const heatBias = current.stress > 45 ? 2 : 0;
+    const floodBias = current.sleep < 7 ? 3 : 0;
+    const floodRisk = Math.min(100, profile.floodRisk + floodBias + (profile.riskBias === "flood" ? 8 : 0));
+    return {
+      temp: Math.round(Math.min(48, profile.temp + heatBias + gpsBoost)),
+      humidity: Math.round(Math.min(95, profile.humidity + (profile.riskBias === "flood" ? 8 : 0) + gpsBoost)),
+      airQuality: Math.round(Math.min(100, profile.airQuality + (profile.riskBias === "heat" ? 8 : 0) + gpsBoost)),
+      uvIndex: Math.round(Math.min(12, profile.uvIndex + (profile.riskBias === "heat" ? 2 : 0) + gpsBoost)),
+      pollen: 58,
+      pollution: Math.round(profile.pollution + gpsBoost),
+      floodRisk: Math.round(floodRisk),
+      extremeHeat: Math.round(Math.min(100, profile.extremeHeat + (profile.riskBias === "heat" ? 12 : 0) + gpsBoost)),
+      rainfall: profile.rainfall,
+      regionLabel: profile.regionLabel,
+    };
+  }, [current, manualLocationCity, manualLocationState, deviceLocation.lat, deviceLocation.lng, deviceLocation.permission]);
 
-  const isHealthDanger = current.stress > 45 || current.recovery < 70;
-  const isEnvironmentDanger = environment.temp > 30 || environment.airQuality > 45 || environment.uvIndex > 6;
-  const isDangerState = isHealthDanger || isEnvironmentDanger;
+  const isDangerState = current.stress > 45 || environment.temp > 30 || environment.airQuality > 45;
+  const isCriticalState = current.stress > 85 && current.recovery < 45 && (environment.temp > 38 || environment.airQuality > 75);
 
   const applyEmergencyContacts = (contacts) => {
     const mappedContacts = contacts
-      .map((contact) => ({
-        name: contact.name || "Emergency contact",
-        phone: contact.phone || "",
-      }))
-      .filter((contact) => contact.phone.replace(/\D/g, ""));
+      .map(sanitizeEmergencyContact)
+      .filter((contact) => contact.phone.length >= 7)
+      .slice(0, 5);
 
-    setEmergencyContacts(mappedContacts.slice(0, 5));
-    setStatusText(mappedContacts.length ? "Device contacts connected" : "No valid contacts found");
+    setEmergencyContacts(mappedContacts);
+    setStatusText(
+      mappedContacts.length
+        ? "Emergency contacts are ready for SOS actions."
+        : "No valid emergency contacts were selected."
+    );
     return mappedContacts;
   };
 
-  const connectToDeviceContacts = async () => {
+  const requestDeviceContactsPermission = async () => {
     if (!("contacts" in navigator) || !navigator.contacts?.select) {
-      setShowContactPicker(true);
-      setStatusText("Select emergency contacts");
+      setStatusText(
+        "This browser does not support direct contact permission prompts. Use recent call history or add a contact manually."
+      );
+      setPhoneConnectMode("choose");
       return;
     }
 
     try {
       const selected = await navigator.contacts.select(["name", "tel"], { multiple: true });
-      const mappedContacts = selected
-        .map((contact) => {
-          const phone = contact.tel?.[0]?.value || "";
-          const name = contact.name?.[0] || contact.name || "Emergency contact";
+      const contacts = selected
+        .map((contact) => ({
+          name: contact.name?.[0] || contact.name || "Emergency contact",
+          phone: contact.tel?.[0]?.value || "",
+        }))
+        .map(sanitizeEmergencyContact)
+        .filter((contact) => contact.phone.length >= 7)
+        .slice(0, 5);
+
+      if (!contacts.length) {
+        setStatusText("No contacts were returned from the device. You can add a manual backup contact instead.");
+        setPhoneConnectMode("manual");
+        return;
+      }
+
+      applyEmergencyContacts(contacts);
+      setShowContactPicker(false);
+      setStatusText("Device contacts access granted. Trusted emergency contacts are ready for SOS.");
+    } catch (error) {
+      console.warn("Device contact permission denied or unavailable:", error);
+      setStatusText(
+        "Permission to access your contacts was denied or is unavailable on this device. Use recent calls or add emergency contacts manually."
+      );
+      setPhoneConnectMode("choose");
+    }
+  };
+
+  const requestRecentCallHistoryAccess = async () => {
+    const api = getRecentCallHistoryApi();
+
+    if (!api) {
+      setStatusText(
+        "Recent call history is not accessible in this browser or device. Add emergency contacts manually instead."
+      );
+      setPhoneConnectMode("manual");
+      setShowContactPicker(true);
+      return;
+    }
+
+    setStatusText("Requesting access to recent calls...");
+
+    try {
+      const payload =
+        (typeof api.getRecentCalls === "function" && (await api.getRecentCalls({ maxResults: 5 }))) ||
+        (typeof api.getCallHistory === "function" && (await api.getCallHistory({ maxResults: 5 }))) ||
+        (typeof api.getCalls === "function" && (await api.getCalls(5))) ||
+        (typeof api.getCallLog === "function" && (await api.getCallLog({ limit: 5 }))) ||
+        [];
+
+      const recentCalls = Array.isArray(payload)
+        ? payload
+        : Array.isArray(payload?.calls)
+          ? payload.calls
+          : [];
+
+      const contacts = recentCalls
+        .map((entry) => {
+          const phone = normalizePhoneNumber(
+            entry.phone || entry.number || entry.tel || entry.value || ""
+          );
+          const name = entry.name || entry.displayName || "Recent contact";
           return { name, phone };
         })
-        .filter((contact) => contact.phone.trim());
+        .map(sanitizeEmergencyContact)
+        .filter((contact) => contact.phone.length >= 7)
+        .slice(0, 5);
 
-      applyEmergencyContacts(mappedContacts);
-    } catch (error) {
-      setShowContactPicker(true);
-      setStatusText("Contact access denied. Select a fallback contact list.");
-    }
-  };
-
-  const handleContactPickerSubmit = () => {
-    const chosenContacts = demoContacts.filter((contact) => selectedContactIds.includes(contact.id));
-    setShowContactPicker(false);
-    setPhoneConnectMode("choose");
-    setEnteredPairingCode("");
-    applyEmergencyContacts(chosenContacts.length ? chosenContacts : demoContacts.slice(0, 4));
-    setStatusText(chosenContacts.length ? "Fallback contacts selected" : "Using saved emergency contacts");
-  };
-
-  const requestConnectedDeviceAccess = async () => {
-    let contactsGranted = false;
-    let gpsGranted = false;
-
-    if ("contacts" in navigator && navigator.contacts?.select) {
-      try {
-        const selected = await navigator.contacts.select(["name", "tel"], { multiple: true });
-        const mappedContacts = selected
-          .map((contact) => {
-            const phone = contact.tel?.[0]?.value || "";
-            const name = contact.name?.[0] || contact.name || "Emergency contact";
-            return { name, phone };
-          })
-          .filter((contact) => contact.phone.trim());
-
-        if (mappedContacts.length) {
-          applyEmergencyContacts(mappedContacts);
-          contactsGranted = true;
-        }
-      } catch (error) {
-        console.warn("Contact access could not be granted automatically", error);
-      }
-    }
-
-    if (navigator.geolocation) {
-      await new Promise((resolve) => {
-        navigator.geolocation.getCurrentPosition(
-          (position) => {
-            gpsGranted = true;
-            setDeviceLocation({
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-              label: "Current device location",
-              permission: "granted",
-              error: "",
-            });
-            resolve();
-          },
-          (error) => {
-            console.warn("GPS access denied during automatic sync", error);
-            resolve();
-          },
-          {
-            enableHighAccuracy: true,
-            timeout: 15000,
-            maximumAge: 60000,
-          }
+      if (!contacts.length) {
+        setStatusText(
+          "No recent call numbers were available from this device. Please add emergency contacts manually."
         );
-      });
+        setPhoneConnectMode("manual");
+        setShowContactPicker(true);
+        return;
+      }
+
+      setRecentCallCandidates(contacts);
+      setPhoneConnectMode("review");
+      setShowContactPicker(true);
+      setStatusText("Review the 5 recent local call numbers before using them for SOS.");
+    } catch (error) {
+      console.warn("Recent call history access failed:", error);
+      setStatusText(
+        "Access to recent call history was denied or unavailable. Add emergency contacts manually instead."
+      );
+      setPhoneConnectMode("manual");
+      setShowContactPicker(true);
+    }
+  };
+
+  const saveManualEmergencyContact = () => {
+    const contact = sanitizeEmergencyContact({
+      name: manualContactName,
+      phone: manualContactPhone,
+    });
+
+    if (!contact.phone || contact.phone.length < 7) {
+      setStatusText("Enter a valid phone number for the emergency contact.");
+      return;
     }
 
-    setDeviceAccess({
-      contacts: contactsGranted || emergencyContacts.length > 0,
-      gps: gpsGranted || deviceLocation.lat !== null,
-      wearables: true,
-    });
-    setShowContactPicker(false);
+    const merged = [...emergencyContacts, contact].slice(0, 5);
+    applyEmergencyContacts(merged);
+    setManualContactName("");
+    setManualContactPhone("");
     setPhoneConnectMode("choose");
-    setStatusText(
-      contactsGranted || gpsGranted
-        ? "Automatic access granted: contacts, GPS, and offline wearable sensors are ready."
-        : "Connected device access is available when permissions are granted on the phone or browser."
-    );
+    setShowContactPicker(false);
   };
 
   const handleOpenCompanionApp = () => {
@@ -883,109 +801,30 @@ function Dashboard({ profile, onLogout }) {
     }, 400);
   };
 
-  const finishPhoneSync = () => {
-    const normalizedCode = enteredPairingCode.trim().toUpperCase();
-
-    if (phoneConnectMode === "pair" && normalizedCode && normalizedCode !== pairingCode) {
-      setStatusText("Pairing code did not match");
-      return;
-    }
-
-    const accessSummary = {
-      contacts: emergencyContacts.length > 0,
-      gps: deviceLocation.lat !== null,
-      wearables: true,
-    };
-
-    applyEmergencyContacts(demoContacts.slice(0, 4));
-    setDeviceAccess(accessSummary);
-    setShowContactPicker(false);
-    setPhoneConnectMode("choose");
-    setEnteredPairingCode("");
-    setStatusText("Phone connected successfully. Saved contacts are now available in the emergency view.");
-  };
-
-  const toggleSelectedContact = (contactId) => {
-    setSelectedContactIds((currentIds) =>
-      currentIds.includes(contactId)
-        ? currentIds.filter((id) => id !== contactId)
-        : [...currentIds, contactId]
-    );
-  };
-
   const openMap = () => {
     window.open(liveLocation.googleMapsUrl, "_blank", "noopener,noreferrer");
   };
 
-  const openWeatherMap = () => {
-    const lat = deviceLocation.lat ?? 19.0760;
-    const lng = deviceLocation.lng ?? 72.8777;
-    const weatherUrl = `https://www.windy.com/?lat=${lat}&lon=${lng}&zoom=7&layer=radar&menu=rain&detail=detail&detailLat=${lat}&detailLon=${lng}&metricWind=km%2Fh&metricTemp=%C2%B0C&detailShow=true`;
-    window.open(weatherUrl, "_blank", "noopener,noreferrer");
-  };
-
-  const unlockAudio = async () => {
-    const AudioConstructor = window.AudioContext || window.webkitAudioContext;
-    if (!AudioConstructor) return;
-
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioConstructor();
-    }
-
-    if (audioContextRef.current.state === "suspended") {
-      try {
-        await audioContextRef.current.resume();
-      } catch (error) {
-        console.warn("Audio resume failed:", error);
-      }
-    }
-  };
-
-  const triggerRiskTone = async (riskType = "combined") => {
-    const AudioConstructor = window.AudioContext || window.webkitAudioContext;
-    if (!AudioConstructor) return;
-
-    if (!audioContextRef.current) {
-      audioContextRef.current = new AudioConstructor();
-    }
-
-    try {
-      if (audioContextRef.current.state === "suspended") {
-        await audioContextRef.current.resume();
-      }
-    } catch (error) {
-      console.warn("Audio context could not resume:", error);
+  const requestLocationAccess = () => {
+    if (!navigator.geolocation) {
+      setStatusText("Live location is not supported. Enter a city below to update local risk data.");
       return;
     }
 
-    const toneMap = {
-      health: { frequency: 220, duration: 0.22, type: "sawtooth", volume: 0.045 },
-      environment: { frequency: 440, duration: 0.18, type: "triangle", volume: 0.04 },
-      combined: { frequency: 310, duration: 0.3, type: "square", volume: 0.055 },
-    };
-
-    const tone = toneMap[riskType] || toneMap.combined;
-
-    try {
-      const audioContext = audioContextRef.current;
-      const oscillator = audioContext.createOscillator();
-      const gainNode = audioContext.createGain();
-
-      oscillator.type = tone.type;
-      oscillator.frequency.value = tone.frequency;
-
-      gainNode.gain.setValueAtTime(0.0001, audioContext.currentTime);
-      gainNode.gain.exponentialRampToValueAtTime(tone.volume, audioContext.currentTime + 0.03);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, audioContext.currentTime + tone.duration);
-
-      oscillator.connect(gainNode);
-      gainNode.connect(audioContext.destination);
-
-      oscillator.start();
-      oscillator.stop(audioContext.currentTime + tone.duration);
-    } catch (error) {
-      console.warn("Risk tone could not be started:", error);
-    }
+    setStatusText("Requesting live location access...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setDeviceLocation({ lat: position.coords.latitude, lng: position.coords.longitude, label: "Current device location", permission: "granted", error: "" });
+        setDeviceAccess((prev) => ({ ...prev, gps: true }));
+        setStatusText("Location enabled. Weather and disaster risk updated for this area.");
+      },
+      (error) => {
+        setDeviceLocation((prev) => ({ ...prev, permission: "denied", error: error.message || "Location access was denied." }));
+        setDeviceAccess((prev) => ({ ...prev, gps: false }));
+        setStatusText("Location access was not granted. Use the city fallback to update risk data.");
+      },
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 }
+    );
   };
 
   const triggerCall = (number) => {
@@ -996,10 +835,21 @@ function Dashboard({ profile, onLogout }) {
   };
 
   const dialEmergencyContacts = () => {
-    if (!emergencyContacts.length) return;
+    if (!emergencyContacts.length) {
+      setStatusText("No emergency contacts are available. Please add or approve your contact list first.");
+      setShowContactPicker(true);
+      setPhoneConnectMode("choose");
+      return;
+    }
+
+    const confirmed = window.confirm("Confirm that you want to initiate emergency calls to the saved SOS contacts?");
+    if (!confirmed) {
+      setStatusText("Emergency call cancelled by the user.");
+      return;
+    }
 
     emergencyContacts.forEach((contact, index) => {
-      const cleaned = contact.phone.replace(/\D/g, "");
+      const cleaned = normalizePhoneNumber(contact.phone);
       if (!cleaned) return;
       setTimeout(() => {
         window.location.href = `tel:${cleaned}`;
@@ -1023,7 +873,18 @@ function Dashboard({ profile, onLogout }) {
   };
 
   const sendRiskMessageToAllContacts = () => {
-    if (!emergencyContacts.length) return;
+    if (!emergencyContacts.length) {
+      setStatusText("No emergency contacts are available to receive an SOS message.");
+      setShowContactPicker(true);
+      setPhoneConnectMode("choose");
+      return;
+    }
+
+    const confirmed = window.confirm("Confirm that you want to send the emergency SOS SMS to the selected contacts?");
+    if (!confirmed) {
+      setStatusText("Emergency SMS cancelled by the user.");
+      return;
+    }
 
     emergencyContacts.forEach((contact, index) => {
       setTimeout(() => sendRiskMessageToContact(contact), index * 250);
@@ -1031,175 +892,24 @@ function Dashboard({ profile, onLogout }) {
   };
 
   useEffect(() => {
-    if (!("contacts" in navigator) || !navigator.contacts?.select) {
-      applyEmergencyContacts(demoContacts.slice(0, 4));
-      setDeviceAccess((prev) => ({ ...prev, contacts: false }));
-      setStatusText("Using saved emergency contacts for the active response view.");
-      return;
+    setDeviceAccess((prev) => ({ ...prev, contacts: false }));
+    setStatusText("No emergency contacts are active yet. Select or add trusted contacts for SOS.");
+  }, []);
+
+  useEffect(() => {
+    setDeviceAccess((prev) => ({ ...prev, wearables: true, gps: false }));
+    setStatusText("Monitoring ready. Enable location only when you need location-aware risk data.");
+  }, []);
+
+  useEffect(() => {
+    if (isCriticalState && emergencyContacts.length) {
+      const timer = setTimeout(() => {
+        dialEmergencyContacts();
+      }, 1200);
+
+      return () => clearTimeout(timer);
     }
-
-    connectToDeviceContacts();
-  }, []);
-
-  useEffect(() => {
-    const fetchLiveWeatherData = async (lat, lng) => {
-      try {
-        const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,wind_speed_10m,uv_index&timezone=auto`;
-        const airUrl = `https://air-quality-api.open-meteo.com/v1/air-quality?latitude=${lat}&longitude=${lng}&current=us_aqi&timezone=auto`;
-
-        const [weatherResponse, airResponse] = await Promise.all([
-          fetch(weatherUrl),
-          fetch(airUrl),
-        ]);
-
-        if (!weatherResponse.ok || !airResponse.ok) {
-          throw new Error("Weather service unavailable");
-        }
-
-        const weatherData = await weatherResponse.json();
-        const airData = await airResponse.json();
-        const currentWeather = weatherData.current || {};
-        const currentAir = airData.current || {};
-        const temp = Number(currentWeather.temperature_2m ?? 31);
-        const humidity = Number(currentWeather.relative_humidity_2m ?? 68);
-        const uvIndex = Number(currentWeather.uv_index ?? 7);
-        const precipitation = Number(currentWeather.precipitation ?? 0);
-        const windSpeed = Number(currentWeather.wind_speed_10m ?? 12);
-        const weatherCode = Number(currentWeather.weather_code ?? 0);
-        const airQuality = Number(currentAir.us_aqi ?? 42);
-        const conditionLabel = getWeatherConditionLabel(weatherCode);
-
-        let alert = "Conditions are stable at the moment.";
-        if (temp > 35 || airQuality > 90 || precipitation > 12 || (weatherCode >= 95 && weatherCode <= 99)) {
-          alert = "Extreme conditions detected: heat, storm, flood, or poor air quality risk is elevated.";
-        } else if (temp > 30 || airQuality > 60 || precipitation > 5 || uvIndex > 6) {
-          alert = "High alert: outdoor exposure may be risky. Watch for heat stress or heavy weather.";
-        }
-
-        setLiveWeather({
-          temp,
-          humidity,
-          uvIndex,
-          airQuality,
-          precipitation,
-          windSpeed,
-          weatherCode,
-          summary: conditionLabel,
-          alert,
-          isLoading: false,
-        });
-      } catch (error) {
-        console.warn("Weather API fetch failed", error);
-        setLiveWeather((prev) => ({
-          ...prev,
-          isLoading: false,
-          alert: "Live weather data could not be reached. Local safety guidance is still active.",
-        }));
-      }
-    };
-
-    if (navigator && navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          const nextLat = position.coords.latitude;
-          const nextLng = position.coords.longitude;
-
-          setDeviceLocation({
-            lat: nextLat,
-            lng: nextLng,
-            label: "Current device location",
-            permission: "granted",
-            error: "",
-          });
-          setDeviceAccess((prev) => ({ ...prev, gps: true }));
-          fetchLiveWeatherData(nextLat, nextLng);
-        },
-        (error) => {
-          setDeviceLocation({
-            lat: null,
-            lng: null,
-            label: "Location unavailable",
-            permission: "denied",
-            error: error.message || "Location access was denied. Enable location access to share the live position.",
-          });
-          setDeviceAccess((prev) => ({ ...prev, gps: false }));
-          setLiveWeather((prev) => ({
-            ...prev,
-            isLoading: false,
-            alert: "Location access is not available, so live weather conditions are temporarily unavailable.",
-          }));
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 15000,
-          maximumAge: 60000,
-        }
-      );
-    } else {
-      setDeviceLocation({
-        lat: null,
-        lng: null,
-        label: "Location not supported",
-        permission: "unsupported",
-        error: "This browser does not support live geolocation. Use a connected mobile device with GPS access.",
-      });
-      setDeviceAccess((prev) => ({ ...prev, gps: false }));
-      setLiveWeather((prev) => ({
-        ...prev,
-        isLoading: false,
-        alert: "This browser does not support location-based weather monitoring.",
-      }));
-    }
-
-    setDeviceAccess((prev) => ({ ...prev, wearables: true }));
-  }, []);
-
-  useEffect(() => {
-    const handleUserInteraction = () => {
-      unlockAudio();
-    };
-
-    window.addEventListener("pointerdown", handleUserInteraction, { once: true });
-    window.addEventListener("keydown", handleUserInteraction, { once: true });
-    window.addEventListener("touchstart", handleUserInteraction, { once: true });
-
-    return () => {
-      window.removeEventListener("pointerdown", handleUserInteraction);
-      window.removeEventListener("keydown", handleUserInteraction);
-      window.removeEventListener("touchstart", handleUserInteraction);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (!isDangerState) return;
-
-    const riskTypes = [];
-    if (isHealthDanger) riskTypes.push("health");
-    if (isEnvironmentDanger) riskTypes.push("environment");
-
-    const playAlertTone = () => {
-      riskTypes.forEach((riskType, index) => {
-        setTimeout(() => {
-          triggerRiskTone(riskType);
-        }, index * 180);
-      });
-    };
-
-    playAlertTone();
-
-    const buzzer = setInterval(() => {
-      playAlertTone();
-    }, 3500);
-
-    const timer = setTimeout(() => {
-      dialEmergencyContacts();
-    }, 1200);
-
-    return () => {
-      clearInterval(buzzer);
-      clearTimeout(timer);
-    };
-  }, [isDangerState, isHealthDanger, isEnvironmentDanger]);
+  }, [isCriticalState, emergencyContacts.length]);
 
   const emergencyMapUrl = `https://maps.google.com/maps?q=${liveLocation.lat ?? 19.0760},${liveLocation.lng ?? 72.8777}&z=13&output=embed`;
 
@@ -1316,9 +1026,24 @@ function Dashboard({ profile, onLogout }) {
       ? "Environmental conditions are elevated today. Heat exposure, air quality stress, and UV load are combining to raise risk for vulnerable users. Recommended actions: increase water intake, avoid peak outdoor heat, wear breathable clothing, keep cooling tools nearby, and limit exertion until conditions improve."
       : "Current environmental conditions remain within a manageable range, with only mild stress signals from the outdoor environment. Keep monitoring heat and AQI during midday and maintain routine hydration and shade breaks when the outdoor environment becomes more intense.";
 
+  const warningCenterAlerts = [
+    environment.temp > 32 && { risk: "Heat Wave Risk", severity: "High", why: `${environment.temp}°C detected in ${environment.regionLabel}.`, action: "Hydrate, avoid direct sunlight, and move to a cooler location." },
+    environment.airQuality > 55 && { risk: "Pollution Risk", severity: "Warning", why: `AQI is ${environment.airQuality}, above the preferred outdoor range.`, action: "Reduce strenuous outdoor activity and use a mask if needed." },
+    environment.floodRisk > 50 && { risk: "Flood / Heavy Rain Risk", severity: "High", why: `${environment.rainfall} mm rain potential and ${environment.floodRisk}% flood signal detected.`, action: "Avoid low-lying routes and move to higher ground if water rises." },
+    current.recovery < 70 && { risk: "Recovery Anomaly", severity: "Warning", why: `Recovery is ${current.recovery}, below the 7-day baseline.`, action: "Rest, hydrate, and reduce physical exertion today." },
+  ].filter(Boolean);
+
+  const healthHistoryData = history.map((item, index) => ({
+    ...item,
+    date: new Date(Date.now() - (history.length - 1 - index) * 86400000).toLocaleDateString(undefined, { month: "short", day: "numeric" }),
+    healthRate: Math.round(item.recovery * 0.45 + item.focus * 0.25 + (100 - item.stress) * 0.2 + (item.sleep / 9) * 100 * 0.1),
+  }));
+
   const tabConfig = [
     { id: "health", label: "Health overview", icon: HeartPulse },
     { id: "anomaly", label: "Real-time anomaly detection", icon: Activity },
+    { id: "warnings", label: "Early Warning Center", icon: AlertTriangle },
+    { id: "history", label: "Health history", icon: TrendingUp },
     { id: "disaster", label: "Disaster mode", icon: ShieldCheck },
     { id: "environment", label: "Environment overview", icon: ShieldCheck },
     { id: "overall", label: "Psychological + environment", icon: Brain },
@@ -1358,6 +1083,36 @@ function Dashboard({ profile, onLogout }) {
         { title: "Recovery drop", detail: `Recovery has fallen ${Math.max(0, recoveryAverage - current.recovery).toFixed(0)} points from the usual trend.`, value: `${Math.max(0, recoveryAverage - current.recovery).toFixed(0)}`, suffix: "pts", meta: "Trend gap", icon: HeartPulse, color: "rgba(255,107,107,0.12)" },
         { title: "Sleep anomaly", detail: current.sleep < 7 ? "Your sleep is below the recommended range and may be reducing your alertness and recovery." : "Sleep remains within a stable range with no clear anomaly detected.", value: `${current.sleep.toFixed(1)}`, suffix: "h", meta: "Sleep track", icon: MoonStar, color: "rgba(78,226,199,0.14)" },
         { title: "Thermal stress", detail: environment.temp > 30 ? `Heat stress is rising at ${environment.temp}°C and may increase fatigue or dehydration risk.` : "Temperature remains comparatively safe and not currently causing thermal stress.", value: `${environment.temp}`, suffix: "°C", meta: "Heat signal", icon: ShieldCheck, color: "rgba(255,191,105,0.13)" },
+      ],
+    },
+    warnings: {
+      header: "Early Warning Center",
+      score: warningCenterAlerts.length ? 38 : 92,
+      scoreLabel: warningCenterAlerts.length ? "Active warnings" : "All clear",
+      badgeColor: warningCenterAlerts.length ? T.warm : T.good,
+      metrics: [
+        { label: "Active warnings", value: `${warningCenterAlerts.length}`, icon: AlertTriangle, color: T.warm },
+        { label: "Location", value: environment.regionLabel.split(" ")[0], icon: ShieldCheck, color: T.accent },
+        { label: "Heat", value: `${environment.temp}°C`, icon: Thermometer, color: T.warm },
+        { label: "Flood", value: `${environment.floodRisk}%`, icon: ShieldCheck, color: T.accent2 },
+      ],
+      cards: warningCenterAlerts.slice(0, 3).map((warning) => ({ title: warning.risk, detail: warning.action, value: warning.severity, suffix: "", meta: warning.why, icon: AlertTriangle, color: "rgba(255,191,105,0.12)" })),
+    },
+    history: {
+      header: "Health history",
+      score: healthHistoryData[healthHistoryData.length - 1].healthRate,
+      scoreLabel: "7-day health rate",
+      badgeColor: T.accent,
+      metrics: [
+        { label: "Latest rate", value: `${healthHistoryData[healthHistoryData.length - 1].healthRate}/100`, icon: TrendingUp, color: T.accent },
+        { label: "Avg recovery", value: `${recoveryAverage.toFixed(0)}/100`, icon: HeartPulse, color: T.accent2 },
+        { label: "Avg sleep", value: `${sleepAverage.toFixed(1)}h`, icon: MoonStar, color: T.warm },
+        { label: "Trend days", value: "7", icon: Clock3, color: T.good },
+      ],
+      cards: [
+        { title: "Latest health rate", detail: `Your latest combined rate is ${healthHistoryData[healthHistoryData.length - 1].healthRate}/100.`, value: `${healthHistoryData[healthHistoryData.length - 1].healthRate}`, suffix: "", meta: "Today", icon: TrendingUp, color: "rgba(78,226,199,0.14)" },
+        { title: "Seven-day baseline", detail: "The graph combines recovery, focus, stress, and sleep into one readable trend.", value: `${Math.round(healthHistoryData.reduce((sum, item) => sum + item.healthRate, 0) / healthHistoryData.length)}`, suffix: "", meta: "Average rate", icon: Activity, color: "rgba(139,124,246,0.12)" },
+        { title: "Trend window", detail: "Dates update automatically so you can compare each day with your recent baseline.", value: "7", suffix: "days", meta: "History", icon: Clock3, color: "rgba(255,191,105,0.12)" },
       ],
     },
     disaster: {
@@ -1431,6 +1186,55 @@ function Dashboard({ profile, onLogout }) {
   };
 
   const renderTabContent = () => {
+    if (activeTab === "warnings") {
+      return (
+        <div style={{ width: "100%" }}>
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Early Warning Center</h2>
+              <div className="panel-copy">Location and health signals</div>
+            </div>
+            {warningCenterAlerts.length ? warningCenterAlerts.map((warning) => (
+              <div className="action-item" key={warning.risk} style={{ borderBottom: `1px solid ${T.borderSoft}`, padding: "14px 0" }}>
+                <div className="action-icon" style={{ background: "rgba(255,191,105,0.12)", color: T.warm }}><AlertTriangle size={18} /></div>
+                <div>
+                  <h4>{warning.risk} <span className="score-badge" style={{ marginLeft: 8, color: warning.severity === "High" ? T.danger : T.warm }}>{warning.severity}</span></h4>
+                  <p><strong>Why:</strong> {warning.why}</p>
+                  <p><strong>Action:</strong> {warning.action}</p>
+                  <p style={{ color: T.textMuted }}>Detected just now</p>
+                </div>
+              </div>
+            )) : <div className="sms-box">No active warnings. Rakshak is monitoring your health and local environment.</div>}
+          </div>
+        </div>
+      );
+    }
+
+    if (activeTab === "history") {
+      return (
+        <div style={{ width: "100%" }}>
+          <div className="panel" style={{ padding: 18 }}>
+            <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
+              <h2>Seven-day health rate</h2>
+              <div className="panel-copy">Date-based trend</div>
+            </div>
+            <div style={{ width: "100%", height: 300 }}>
+              <ResponsiveContainer width="100%" height="100%">
+                <AreaChart data={healthHistoryData} margin={{ top: 12, right: 12, left: -20, bottom: 4 }}>
+                  <defs><linearGradient id="healthRateFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor={T.accent} stopOpacity={0.45} /><stop offset="100%" stopColor={T.accent} stopOpacity={0.03} /></linearGradient></defs>
+                  <CartesianGrid stroke={T.borderSoft} strokeDasharray="3 3" />
+                  <XAxis dataKey="date" stroke={T.textMuted} tick={{ fill: T.textDim, fontSize: 12 }} />
+                  <YAxis domain={[0, 100]} stroke={T.textMuted} tick={{ fill: T.textDim, fontSize: 12 }} />
+                  <Tooltip contentStyle={{ background: T.panel, border: `1px solid ${T.border}`, color: T.text }} />
+                  <Area type="monotone" dataKey="healthRate" name="Health rate" stroke={T.accent} fill="url(#healthRateFill)" strokeWidth={3} />
+                </AreaChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     if (activeTab === "anomaly") {
       return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
@@ -1491,6 +1295,15 @@ function Dashboard({ profile, onLogout }) {
               <h2>Disaster mode overview</h2>
               <div className="panel-copy">Danger detection</div>
             </div>
+            <div className="sms-box" style={{ margin: "0 0 12px" }}>
+              <strong>{manualLocationCity || liveLocation.label}</strong><br />
+              {environment.regionLabel} · Weather profile updates the risk score automatically.
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 10 }}>
+                <button className="action-primary" onClick={requestLocationAccess}>Allow location access</button>
+                <input value={manualLocationCity} onChange={(event) => setManualLocationCity(event.target.value)} placeholder="City fallback" aria-label="City fallback" style={{ maxWidth: 180 }} />
+                <input value={manualLocationState} onChange={(event) => setManualLocationState(event.target.value)} placeholder="State / region" aria-label="State or region fallback" style={{ maxWidth: 180 }} />
+              </div>
+            </div>
             <div className="alert-box" style={{ margin: 0 }}>
               <div className="alert-header">
                 <h3>{disasterLabel}</h3>
@@ -1514,15 +1327,16 @@ function Dashboard({ profile, onLogout }) {
 
           <div className="panel" style={{ padding: 18 }}>
             <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
-              <h2>Weather safety steps</h2>
-              <div className="panel-copy">Immediate protection</div>
+              <h2>Disaster safety modules</h2>
+              <div className="panel-copy">Early warning actions</div>
             </div>
             <div className="action-list" style={{ margin: 0 }}>
               {[
-                { title: "Heat shield", detail: environment.temp > 30 ? "Avoid outdoor tasks during peak heat and keep cooling measures ready." : "Stay hydrated and opportunistically cool down during the hottest hours.", icon: Thermometer, color: T.warm },
-                { title: "Air safety", detail: environment.airQuality > 45 ? "Reduce outdoor exertion, protect breathing, and keep a mask available." : "Air exposure remains manageable, but continue monitoring if the AQI rises.", icon: Activity, color: T.accent },
-                { title: "Hydration cycle", detail: "Drink water regularly and keep ORS or electrolyte support nearby in strong heat conditions.", icon: MoonStar, color: T.accent2 },
-                { title: "Emergency prep", detail: "Keep your emergency contacts ready and avoid unnecessary travel when danger levels are high.", icon: PhoneCall, color: T.danger },
+                { title: "Heat waves", detail: environment.temp > 30 ? "Avoid peak sun, hydrate with electrolytes, and move indoors if dizziness or confusion appears." : "Keep water available and take shade breaks during the hottest hours.", icon: Thermometer, color: T.warm },
+                { title: "Floods", detail: environment.floodRisk > 50 ? "Avoid flooded roads and low-lying routes; move to higher ground if water rises." : "Review drainage routes and keep a waterproof emergency kit ready.", icon: ShieldCheck, color: T.accent2 },
+                { title: "Severe weather", detail: `Wind is part of the local weather signal. Stay indoors during storms and follow official alerts for ${environment.regionLabel}.`, icon: Zap, color: T.danger },
+                { title: "Pollution events", detail: environment.airQuality > 45 ? "Reduce outdoor exertion, protect breathing, and keep a mask available." : "Air exposure is manageable; continue monitoring AQI during the afternoon peak.", icon: Activity, color: T.accent },
+                { title: "Other disasters", detail: "Keep emergency contacts, identification, water, medication, and a torch ready for earthquakes, fires, or local evacuation orders.", icon: PhoneCall, color: T.good },
               ].map(({ title, detail, icon: Icon, color }) => (
                 <div className="action-item" key={title}>
                   <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
@@ -1649,27 +1463,6 @@ function Dashboard({ profile, onLogout }) {
     }
 
     if (activeTab === "emergency") {
-      const primaryRisk = isHealthDanger && isEnvironmentDanger
-        ? "Both health and environmental conditions are elevated"
-        : isHealthDanger
-          ? "Health risks are elevated"
-          : isEnvironmentDanger
-            ? "Environmental hazards are elevated"
-            : "No immediate danger signals";
-
-      const riskDrivers = [
-        isHealthDanger ? `Stress level ${current.stress}/100 with recovery at ${current.recovery}/100` : "Health metrics remain within a stable range",
-        isEnvironmentDanger ? `Air quality ${environment.airQuality} AQI, temperature ${environment.temp}°C, UV ${environment.uvIndex}/10` : "Environmental metrics are relatively stable",
-        deviceLocation.lat !== null && deviceLocation.lng !== null ? `Live location available: ${deviceLocation.lat.toFixed(4)}, ${deviceLocation.lng.toFixed(4)}` : "Location share is not active yet; enable GPS for faster emergency help",
-      ];
-
-      const responseSteps = [
-        { title: "Immediate safety", detail: isDangerState ? "Move to a cool, safe indoor place and avoid strenuous activity until the risk falls." : "Keep hydration and a rapid-response plan ready in case the risk rises.", icon: ShieldCheck, color: T.warm },
-        { title: "Health check", detail: isHealthDanger ? "Focus on rest, hydration, and symptom monitoring for dizziness, confusion, chest pain, or sudden fatigue." : "Monitor for changes in stress, energy, and sleep quality during the next few hours.", icon: HeartPulse, color: T.danger },
-        { title: "Environmental response", detail: isEnvironmentDanger ? "Reduce outdoor exposure, use shade or masks, and keep cooling supplies nearby while AQI or heat remains high." : "Continue routine monitoring; conditions are manageable for now.", icon: Activity, color: T.accent },
-        { title: "Emergency contact", detail: "Share your live map and send a message to all saved contacts if symptoms worsen or conditions become unsafe.", icon: PhoneCall, color: T.accent2 },
-      ];
-
       return (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 18 }}>
           <div className="panel" style={{ padding: 18 }}>
@@ -1687,11 +1480,11 @@ function Dashboard({ profile, onLogout }) {
               <div className="status-strip">
                 <div className="status-card">
                   <div className="status-label">Health</div>
-                  <div className="status-value" style={{ color: isHealthDanger ? T.danger : T.good }}>{isHealthDanger ? "Elevated" : "Stable"}</div>
+                  <div className="status-value">{current.recovery < 70 ? "Elevated" : "Stable"}</div>
                 </div>
                 <div className="status-card">
                   <div className="status-label">Environment</div>
-                  <div className="status-value" style={{ color: isEnvironmentDanger ? T.warm : T.good }}>{isEnvironmentDanger ? "Unsafe" : "Safe"}</div>
+                  <div className="status-value">{environment.temp > 30 || environment.airQuality > 45 ? "Unsafe" : "Safe"}</div>
                 </div>
               </div>
 
@@ -1710,18 +1503,6 @@ function Dashboard({ profile, onLogout }) {
                 </div>
               </div>
 
-              <div className="sms-box" style={{ marginTop: 12 }}>
-                <strong>Current risk summary:</strong> {primaryRisk}
-              </div>
-
-              <div className="alert-contact-list" style={{ marginTop: 12 }}>
-                {riskDrivers.map((driver, index) => (
-                  <div className="sms-box" key={`${driver}-${index}`} style={{ marginTop: 0, marginBottom: 8 }}>
-                    {driver}
-                  </div>
-                ))}
-              </div>
-
               <div className="map-card">
                 <iframe
                   title="Emergency location map"
@@ -1738,7 +1519,6 @@ function Dashboard({ profile, onLogout }) {
                 <button className="action-primary" onClick={dialEmergencyContacts} disabled={!emergencyContacts.length}>Call contacts</button>
                 <button className="action-secondary" onClick={sendRiskMessageToAllContacts} disabled={!emergencyContacts.length}>Message all</button>
                 <button className="action-secondary" onClick={openMap}>Safe zone</button>
-                <button className="action-secondary" onClick={openWeatherMap}>Live weather map</button>
               </div>
 
               <div className="sms-box" style={{ marginTop: 12 }}>
@@ -1773,10 +1553,6 @@ function Dashboard({ profile, onLogout }) {
                   ? "Important: the system is automatically contacting priority contacts because the environment or mental health risk is high. Take immediate rest, hydrate, and seek safe shelter if symptoms worsen."
                   : "Your current risk is manageable. Keep hydration and cooling routines ready, and remain alert to sudden spikes in stress, heat, or air conditions."}
               </div>
-
-              <div className="sms-box" style={{ marginTop: 8 }}>
-                <strong>Live weather watch (Open-Meteo):</strong> {environment.summary} — {environment.alert}
-              </div>
             </div>
           </div>
 
@@ -1786,7 +1562,12 @@ function Dashboard({ profile, onLogout }) {
               <div className="panel-copy">Quick actions</div>
             </div>
             <div className="action-list" style={{ margin: 0 }}>
-              {responseSteps.map(({ title, detail, icon: Icon, color }) => (
+              {[
+                { title: "Move to cool indoor space", detail: "If heat or air stress rises, relocate to a cooler indoor environment and keep fluids ready.", icon: ShieldCheck, color: T.warm },
+                { title: "Contact support", detail: "Notify your emergency contact and use your saved access number for direct contact.", icon: HeartPulse, color: T.accent },
+                { title: "Monitor warning signs", detail: "Look for dizziness, chest pain, confusion, fainting, or sudden worsening of fatigue.", icon: Activity, color: T.danger },
+                { title: "Keep a safe response ready", detail: "Store your location, emergency numbers, and travel route in case you need fast action.", icon: Sparkles, color: T.accent2 },
+              ].map(({ title, detail, icon: Icon, color }) => (
                 <div className="action-item" key={title}>
                   <div className="action-icon" style={{ background: `${color}14`, color }}><Icon size={18} /></div>
                   <div>
@@ -1795,15 +1576,6 @@ function Dashboard({ profile, onLogout }) {
                   </div>
                 </div>
               ))}
-            </div>
-
-            <div className="insight-box" style={{ marginTop: 18 }}>
-              <div className="tag">Emergency escalation</div>
-              <p>
-                {isDangerState
-                  ? "If symptoms become severe, call emergency services immediately, move to a safer area, and continue sharing your location with trusted contacts until the risk is resolved."
-                  : "Keep your plan ready: monitor the latest readings, maintain hydration, and check in with contacts if stress or environmental indicators begin to trend upward."}
-              </p>
             </div>
           </div>
         </div>
@@ -1862,30 +1634,20 @@ function Dashboard({ profile, onLogout }) {
   };
 
   return (
-    <div style={{ background: "radial-gradient(circle at top, rgba(0, 217, 255, 0.12), transparent 28%), linear-gradient(180deg, #05070D 0%, #0A111C 60%, #05070D 100%)", minHeight: "100vh", color: T.text, fontFamily: "'Poppins', 'Segoe UI', sans-serif" }}>
+    <div style={{ background: T.bg, minHeight: "100vh", color: T.text, fontFamily: "Inter, system-ui, sans-serif" }}>
       <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800;900&display=swap');
-
         * { box-sizing: border-box; }
-        body {
-          margin: 0;
-          background: ${T.bg};
-          font-family: 'Poppins', 'Segoe UI', sans-serif;
-          -webkit-font-smoothing: antialiased;
-          text-rendering: optimizeLegibility;
-        }
-        h1, h2, h3, h4, h5, h6, strong, b { font-family: 'Poppins', 'Segoe UI', sans-serif; letter-spacing: -0.04em; }
-        button, input, select, textarea { font-family: 'Poppins', 'Segoe UI', sans-serif; letter-spacing: 0.01em; }
+        body { margin: 0; background: ${T.bg}; }
         button, select { font: inherit; }
         .page { max-width: 1200px; width: 100%; margin: 0 auto; padding: 28px 22px 48px; display: flex; flex-direction: column; align-items: center; }
-        .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; width: 100%; padding: 10px 0; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 24px; width: 100%; }
         .tab-bar { display: flex; gap: 10px; flex-wrap: wrap; margin: 0 0 24px; justify-content: center; align-items: center; width: 100%; }
         .tab-btn { border: 1px solid ${T.border}; background: ${T.surface}; color: ${T.textDim}; border-radius: 12px; padding: 10px 16px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; font-weight: 600; }
-        .tab-btn.active { background: rgba(22,181,166,0.12); color: ${T.text}; border-color: rgba(22,181,166,0.32); }
+        .tab-btn.active { background: rgba(78, 226, 199, 0.12); color: ${T.text}; border-color: rgba(78, 226, 199, 0.35); }
         .brand { display: flex; align-items: center; gap: 12px; }
-        .brand-mark { width: 40px; height: 40px; border-radius: 14px; background: linear-gradient(135deg, rgba(22,181,166,0.12), rgba(79,110,247,0.12)); border: 1px solid rgba(22,181,166,0.25); display:flex; align-items:center; justify-content:center; box-shadow: inset 0 1px 0 rgba(255,255,255,0.7); }
+        .brand-mark { width: 38px; height: 38px; border-radius: 12px; background: rgba(78, 226, 199, 0.14); border: 1px solid rgba(78, 226, 199, 0.4); display:flex; align-items:center; justify-content:center; }
         .brand-name { font-size: 24px; font-weight: 700; letter-spacing: -0.04em; }
-        .status-pill { border: 1px solid ${T.border}; background: rgba(255,255,255,0.8); border-radius: 999px; padding: 8px 12px; color: ${T.textDim}; font-size: 12px; display: inline-flex; align-items:center; gap:8px; }
+        .status-pill { border: 1px solid ${T.border}; background: ${T.surface}; border-radius: 999px; padding: 8px 12px; color: ${T.textDim}; font-size: 12px; display: inline-flex; align-items:center; gap:8px; }
         .dot { width: 8px; height: 8px; border-radius: 50%; background: ${T.good}; box-shadow: 0 0 12px ${T.good}; }
         .hero { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 18px; }
         .panel { background: linear-gradient(180deg, rgba(16,45,59,0.96), rgba(10,28,38,0.95)); border: 1px solid ${T.border}; border-radius: 22px; box-shadow: 0 18px 40px ${T.shadow}; }
@@ -1986,6 +1748,30 @@ function Dashboard({ profile, onLogout }) {
           .topbar { flex-direction: column; align-items: flex-start; }
           .score-value { font-size: 52px; }
         }
+
+        @media (max-width: 680px) {
+          .page { padding: 16px 12px 28px; }
+          .topbar { margin-bottom: 16px; }
+          .brand-name { font-size: 20px; }
+          .status-pill { width: 100%; justify-content: center; }
+          .tab-bar { gap: 8px; }
+          .tab-btn { flex: 1 1 calc(50% - 8px); justify-content: center; padding: 9px 10px; font-size: 11px; }
+          .hero-panel, .score-panel { padding: 18px 16px; }
+          .score-panel { gap: 10px; }
+          .score-value { font-size: 42px; }
+          .mini-grid, .focus-check, .status-strip { grid-template-columns: 1fr; }
+          .cta-row { flex-direction: column; }
+          .primary-btn, .secondary-btn, .action-primary, .action-secondary { width: 100%; }
+          .summary-card, .action-item { padding: 12px; }
+          .action-list, .signal-list, .alert-box, .insight-box { margin-left: 10px; margin-right: 10px; }
+          .alert-actions { flex-direction: column; }
+          .contact-row { flex-direction: column; align-items: flex-start; }
+          .call-btn { width: 100%; }
+          .progress { width: 90px; }
+          .map-card { height: 120px; }
+          .signal-row { align-items: flex-start; flex-direction: column; }
+          .signal-right { width: 100%; }
+        }
       `}</style>
 
       <div className="page">
@@ -1993,52 +1779,95 @@ function Dashboard({ profile, onLogout }) {
           <div style={{ position: "fixed", inset: 0, background: "rgba(3, 12, 18, 0.76)", display: "flex", alignItems: "center", justifyContent: "center", padding: 20, zIndex: 40 }}>
             <div className="panel" style={{ width: "min(560px, 100%)", padding: 22 }}>
               <div className="panel-header" style={{ padding: 0, marginBottom: 12 }}>
-                <h2 style={{ margin: 0 }}>Connect your phone</h2>
-                <div className="panel-copy">Sync your personal contacts securely</div>
+                <h2 style={{ margin: 0 }}>Emergency contacts</h2>
+                <div className="panel-copy">Local-only, privacy-aware contact setup</div>
               </div>
 
               {phoneConnectMode === "choose" && (
                 <>
                   <div style={{ marginTop: 12, padding: 14, borderRadius: 12, border: `1px solid ${T.borderSoft}`, background: "rgba(78,226,199,0.06)", color: T.textDim, fontSize: 13, lineHeight: 1.6 }}>
-                    Enable automatic access to the connected phone for contacts, live GPS, and offline wearable sensors.
+                    {recentCallPermissionMessage}
                   </div>
 
                   <div style={{ display: "grid", gap: 10, marginTop: 16 }}>
-                    <button className="primary-btn" onClick={requestConnectedDeviceAccess}>Grant automatic device access</button>
+                    <button className="primary-btn" onClick={requestDeviceContactsPermission}>Allow access to device contacts</button>
+                    <button className="secondary-btn" onClick={requestRecentCallHistoryAccess}>Use recent call history</button>
+                    <button className="secondary-btn" onClick={() => setPhoneConnectMode("manual")}>Add emergency contacts manually</button>
                     <button className="secondary-btn" onClick={handleOpenCompanionApp}>Open companion app</button>
-                    <button className="secondary-btn" onClick={() => setPhoneConnectMode("pair")}>Enter pairing code</button>
                   </div>
 
                   <div style={{ marginTop: 18, padding: 14, borderRadius: 12, background: "rgba(255,255,255,0.03)", border: `1px solid ${T.borderSoft}`, color: T.textDim, lineHeight: 1.6 }}>
-                    Real contacts, GPS, and wearable sensor data are pulled from the connected device only. This keeps access truly device-based instead of using demo data.
+                    If this browser or device cannot access your recent call logs, Rakshak will not generate fake contacts. You can add trusted people manually instead.
+                  </div>
+
+                  <div style={{ marginTop: 14, padding: 12, borderRadius: 12, background: "rgba(139,124,246,0.08)", border: `1px solid rgba(139,124,246,0.25)`, color: T.textDim, lineHeight: 1.6, fontSize: 12.5 }}>
+                    <strong style={{ color: T.text }}>Enable access in device settings:</strong>
+                    <br />Android: Settings → Apps → Browser/Chrome → Permissions → Contacts/Phone → Allow
+                    <br />iPhone: Settings → Safari/Browser → Permissions → Contacts → Allow
+                    <br />After enabling, return to Rakshak and tap “Allow access to device contacts” again.
                   </div>
 
                   <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
                     <button className="secondary-btn" onClick={() => setShowContactPicker(false)}>Cancel</button>
-                    <button className="primary-btn" onClick={handleContactPickerSubmit}>Use connected device</button>
                   </div>
                 </>
               )}
 
-              {phoneConnectMode === "pair" && (
-                <div style={{ display: "grid", gap: 16, marginTop: 14 }}>
-                  <div style={{ padding: 12, borderRadius: 12, background: "rgba(139,124,246,0.08)", border: `1px solid rgba(139,124,246,0.25)`, color: T.textDim, textAlign: "center" }}>
-                    Pairing code: <strong style={{ color: T.text, letterSpacing: 1.5 }}>{pairingCode}</strong>
+              {phoneConnectMode === "review" && (
+                <>
+                  <div style={{ marginTop: 12, padding: 14, borderRadius: 12, border: `1px solid ${T.borderSoft}`, background: "rgba(78,226,199,0.06)", color: T.textDim, fontSize: 13, lineHeight: 1.6 }}>
+                    Review these 5 local recent call numbers before using them for SOS calls or emergency messages.
                   </div>
-                  <label style={{ display: "flex", flexDirection: "column", gap: 8, color: T.textMuted, letterSpacing: "0.12em", textTransform: "uppercase", fontSize: 11 }}>
-                    Enter pairing code
-                    <input
-                      value={enteredPairingCode}
-                      onChange={(e) => setEnteredPairingCode(e.target.value)}
-                      placeholder="RAK-4821"
-                      style={{ width: "100%", borderRadius: 12, border: `1px solid ${T.border}`, background: "rgba(6,18,26,0.8)", color: T.text, padding: "12px 14px", fontSize: 14 }}
-                    />
-                  </label>
-                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10 }}>
+
+                  <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+                    {recentCallCandidates.map((contact, index) => (
+                      <div key={`${contact.name}-${contact.phone}-${index}`} style={{ padding: 10, borderRadius: 12, background: "rgba(255,255,255,0.03)", border: `1px solid ${T.borderSoft}`, color: T.text }}>
+                        <div style={{ fontWeight: 600 }}>{contact.name}</div>
+                        <div style={{ color: T.textDim, fontSize: 12, marginTop: 2 }}>{contact.phone}</div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
                     <button className="secondary-btn" onClick={() => setPhoneConnectMode("choose")}>Back</button>
-                    <button className="primary-btn" onClick={finishPhoneSync}>Confirm pairing</button>
+                    <button className="primary-btn" onClick={() => { applyEmergencyContacts(recentCallCandidates); setShowContactPicker(false); }}>Use these contacts</button>
                   </div>
-                </div>
+                </>
+              )}
+
+              {phoneConnectMode === "manual" && (
+                <>
+                  <div style={{ marginTop: 12, padding: 14, borderRadius: 12, border: `1px solid ${T.borderSoft}`, background: "rgba(78,226,199,0.06)", color: T.textDim, fontSize: 13, lineHeight: 1.6 }}>
+                    Add a trusted emergency contact manually. This is the safe fallback when recent-call access is unavailable or denied.
+                  </div>
+
+                  <div style={{ display: "grid", gap: 12, marginTop: 16 }}>
+                    <label style={{ display: "flex", flexDirection: "column", gap: 8, color: T.textMuted, letterSpacing: "0.12em", textTransform: "uppercase", fontSize: 11 }}>
+                      Contact name
+                      <input
+                        value={manualContactName}
+                        onChange={(e) => setManualContactName(e.target.value)}
+                        placeholder="Name"
+                        style={{ width: "100%", borderRadius: 12, border: `1px solid ${T.border}`, background: "rgba(6,18,26,0.8)", color: T.text, padding: "12px 14px", fontSize: 14 }}
+                      />
+                    </label>
+
+                    <label style={{ display: "flex", flexDirection: "column", gap: 8, color: T.textMuted, letterSpacing: "0.12em", textTransform: "uppercase", fontSize: 11 }}>
+                      Phone number
+                      <input
+                        value={manualContactPhone}
+                        onChange={(e) => setManualContactPhone(e.target.value)}
+                        placeholder="+1 234 567 890"
+                        style={{ width: "100%", borderRadius: 12, border: `1px solid ${T.border}`, background: "rgba(6,18,26,0.8)", color: T.text, padding: "12px 14px", fontSize: 14 }}
+                      />
+                    </label>
+                  </div>
+
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: 10, marginTop: 18, flexWrap: "wrap" }}>
+                    <button className="secondary-btn" onClick={() => setPhoneConnectMode("choose")}>Back</button>
+                    <button className="primary-btn" onClick={saveManualEmergencyContact}>Save contact</button>
+                  </div>
+                </>
               )}
             </div>
           </div>
@@ -2046,7 +1875,7 @@ function Dashboard({ profile, onLogout }) {
 
         <header className="topbar">
           <div className="brand">
-            <div className="brand-mark"><LogoMark size={18} color={T.accent} /></div>
+            <div className="brand-mark"><ShieldCheck size={18} color={T.accent} /></div>
             <div className="brand-name">Rakshak</div>
           </div>
           <div style={{ display: "flex", gap: 12, alignItems: "center" }}>
@@ -2077,6 +1906,8 @@ function Dashboard({ profile, onLogout }) {
             <h1>
               {activeTab === "health" && <>Your personal health score is <span className="gradient-text">strong and stable</span></>}
               {activeTab === "anomaly" && <>Real-time health alerts are <span className="gradient-text">tracking your drift</span></>}
+              {activeTab === "warnings" && <>Early warnings are <span className="gradient-text">ready before emergencies</span></>}
+              {activeTab === "history" && <>Your health rate is <span className="gradient-text">changing over seven days</span></>}
               {activeTab === "disaster" && <>Weather danger is <span className="gradient-text">being detected live</span></>}
               {activeTab === "environment" && <>Your environment is <span className="gradient-text">under watch</span></>}
               {activeTab === "overall" && <>Your mental and environmental balance is <span className="gradient-text">being monitored</span></>}
@@ -2084,6 +1915,8 @@ function Dashboard({ profile, onLogout }) {
             <div className="subtext">
               {activeTab === "health" && "Track your personal rhythm across sleep, recovery, focus, and stress — then let AI surface the small changes that matter before they become setbacks."}
               {activeTab === "anomaly" && "Monitor sudden recovery drops, sleep drift, stress spikes, and heat-related anomalies before they turn into a health event."}
+              {activeTab === "warnings" && "Review every detected health and environmental warning with its severity, reason, recommended action, and detection time."}
+              {activeTab === "history" && "Compare your seven-day health rate with dated trend points built from sleep, recovery, focus, and stress."}
               {activeTab === "disaster" && "This mode reads the current weather conditions and highlights the danger level so you can act early during heat, air-quality, or UV-heavy conditions."}
               {activeTab === "environment" && "Monitor air quality, heat, humidity, and UV levels to protect your body and daily routine when outdoor conditions worsen."}
               {activeTab === "overall" && "Review your focus, mood, stress, and environment together to understand how your psychological state and conditions work as one system."}

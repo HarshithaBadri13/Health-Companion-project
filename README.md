@@ -1,47 +1,29 @@
-# Rakshak Health Companion
+# Rakshak Health Demo
 
-Rakshak is a privacy-first health companion app designed to help users monitor wellness trends, recovery, stress, sleep, and personal goals in one place.
+A health companion dashboard and emergency-awareness web app built with Vite + React.
 
-## Overview
+## Project overview
+This project includes a dark health-tech interface with:
+- live health and environment monitoring
+- weather and AQI checks
+- emergency contact and alert flows
+- personal dashboard insights
+- responsive landing/auth/dashboard experience
 
-This project presents a modern health dashboard experience with:
+## Run locally
 
-- recovery and sleep tracking
-- stress and focus insights
-- wellness trends across the week
-- onboarding and profile setup
-- emergency contact and safety-focused user flow
-- a clean, mobile-friendly interface inspired by health-tech products
+```bash
+npm install
+npm run dev
+```
 
-## Tech Stack
+Then open http://localhost:5173 in your browser.
 
-- React
-- Vite
-- Recharts
-- Lucide React
+## Build for production
 
-## Project Structure
+```bash
+npm run build
+```
 
-- `src/App.jsx` — main app logic and dashboard UI
-- `src/main.jsx` — React entry point
-- `index.html` — app shell
-- `app.html` — standalone landing-style page
-
-## Local Development
-
-1. Install dependencies:
-   ```bash
-   npm install
-   ```
-2. Start the app locally:
-   ```bash
-   npm run dev
-   ```
-3. Build for production:
-   ```bash
-   npm run build
-   ```
-
-## Notes
-
-The app is structured as a demo health companion experience and is intended for UI prototyping and concept validation rather than production medical use.
+## Repository note
+This project was formerly known as the Health-Companion project and now continues under the Rakshak branding.
